@@ -2,20 +2,20 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"kalycs/db"
 	"kalycs/internal/logging"
+	"kalycs/internal/store"
 	"kalycs/internal/utils"
 	"kalycs/internal/watcher"
 )
 
-type Watcher interface {
-	Start()
-	Stop()
-}
-
 // App struct
 type App struct {
 	ctx     context.Context
-	watcher Watcher
+	watcher watcher.Watcher
+	db      *sql.DB
+	store   *store.Store
 }
 
 // NewApp creates a new App application struct
@@ -38,14 +38,22 @@ func (a *App) startup(ctx context.Context) {
 	if err != nil {
 		logging.L().Fatalw("Failed to create watcher", "error", err)
 	}
-	a.watcher = w
+	a.watcher = *w
 	a.watcher.Start()
+
+	err = db.InitializeDatabase()
+	if err != nil {
+		logging.L().Fatalw("Failed to initialize database", "error", err)
+	}
+	a.db = db.GetDB()
+
+	a.store = store.NewStore(a.db)
 }
 
 // domReady is called after the front-end has been loaded
-func (a *App) domReady(ctx context.Context) {
-	logging.L().Info("DOM ready")
-}
+// func (a *App) domReady(ctx context.Context) {
+// 	logging.L().Info("DOM ready")
+// }
 
 func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
