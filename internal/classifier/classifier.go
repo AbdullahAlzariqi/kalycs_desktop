@@ -102,8 +102,8 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 		Texts:         texts,
 	}
 
-	switch cr.Kind {
-	case "regex":
+	if cr.Kind == "regex" {
+
 		pattern := cr.Texts[0]
 		if !cr.CaseSensitive {
 			pattern = "(?i)" + pattern
@@ -113,11 +113,10 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 			return CompiledRule{}, err
 		}
 		cr.Regexp = re
-	default:
-		if !cr.CaseSensitive {
-			for i, t := range cr.Texts {
-				cr.Texts[i] = strings.ToLower(t)
-			}
+	} else if !cr.CaseSensitive {
+		for i, t := range cr.Texts {
+			cr.Texts[i] = strings.ToLower(t)
+
 		}
 	}
 

@@ -2,11 +2,13 @@ package classifier
 
 import (
 	"encoding/json"
+
 	"sort"
 	"testing"
 
 	"kalycs/db"
 )
+
 
 func mustJSON(t *testing.T, items []string) string {
 	t.Helper()
