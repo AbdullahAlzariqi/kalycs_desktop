@@ -9,7 +9,6 @@ import (
 	"kalycs/db"
 )
 
-
 func mustJSON(t *testing.T, items []string) string {
 	t.Helper()
 	b, err := json.Marshal(items)
@@ -55,6 +54,21 @@ func TestCompileRule_RegexCaseSensitivity(t *testing.T) {
 	}
 }
 
+func TestCompileRule_RegexEmptyTexts(t *testing.T) {
+	rule := db.Rule{
+		ID:            "1",
+		ProjectID:     "p1",
+		Rule:          "regex",
+		Texts:         mustJSON(t, []string{}),
+		CaseSensitive: true,
+	}
+
+	_, err := compileRule(rule)
+	if err == nil {
+		t.Fatal("expected error for regex rule with no texts")
+	}
+}
+
 func TestMatches_MultiText(t *testing.T) {
 	rule := db.Rule{
 		ID:            "ext1",
@@ -77,6 +91,28 @@ func TestMatches_MultiText(t *testing.T) {
 	}
 	if matches(cr, "doc.txt", "txt") {
 		t.Error("unexpected match for txt extension")
+	}
+}
+
+func TestMatches_ExtensionCaseSensitive(t *testing.T) {
+	rule := db.Rule{
+		ID:            "ext2",
+		ProjectID:     "p1",
+		Rule:          "extension",
+		Texts:         mustJSON(t, []string{"JPG"}),
+		CaseSensitive: true,
+	}
+
+	cr, err := compileRule(rule)
+	if err != nil {
+		t.Fatalf("compileRule error: %v", err)
+	}
+
+	if !matches(cr, "photo.JPG", "JPG") {
+		t.Error("expected case-sensitive extension to match exact case")
+	}
+	if matches(cr, "photo.jpg", "jpg") {
+		t.Error("unexpected match for lower case extension")
 	}
 }
 
