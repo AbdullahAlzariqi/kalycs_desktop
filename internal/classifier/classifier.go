@@ -102,18 +102,20 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 		Texts:         texts,
 	}
 
-	if !cr.CaseSensitive {
-		for i, t := range cr.Texts {
-			cr.Texts[i] = strings.ToLower(t)
-		}
-	}
-
 	if cr.Kind == "regex" {
-		re, err := regexp.Compile(cr.Texts[0])
+		pattern := cr.Texts[0]
+		if !cr.CaseSensitive {
+			pattern = "(?i)" + pattern
+		}
+		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return CompiledRule{}, err
 		}
 		cr.Regexp = re
+	} else if !cr.CaseSensitive {
+		for i, t := range cr.Texts {
+			cr.Texts[i] = strings.ToLower(t)
+		}
 	}
 
 	return cr, nil
