@@ -103,6 +103,7 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 	}
 
 	if cr.Kind == "regex" {
+
 		pattern := cr.Texts[0]
 		if !cr.CaseSensitive {
 			pattern = "(?i)" + pattern
@@ -115,6 +116,7 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 	} else if !cr.CaseSensitive {
 		for i, t := range cr.Texts {
 			cr.Texts[i] = strings.ToLower(t)
+
 		}
 	}
 
@@ -169,20 +171,39 @@ func (c *Classifier) Classify(ctx context.Context, absPath string, meta os.FileI
 
 func matches(r CompiledRule, name, ext string) bool {
 	testName := name
-	if !r.CaseSensitive {
+	if !r.CaseSensitive && r.Kind != "regex" {
 		testName = strings.ToLower(testName)
 	}
 
 	switch r.Kind {
 	case "starts_with":
-		return strings.HasPrefix(testName, r.Texts[0])
+		for _, t := range r.Texts {
+			if strings.HasPrefix(testName, t) {
+				return true
+			}
+		}
+		return false
 	case "contains":
-		return strings.Contains(testName, r.Texts[0])
+		for _, t := range r.Texts {
+			if strings.Contains(testName, t) {
+				return true
+			}
+		}
+		return false
 	case "ends_with":
-		return strings.HasSuffix(testName, r.Texts[0])
+		for _, t := range r.Texts {
+			if strings.HasSuffix(testName, t) {
+				return true
+			}
+		}
+		return false
 	case "extension":
-		// extension is already lowercased
-		return ext == r.Texts[0]
+		for _, t := range r.Texts {
+			if ext == t {
+				return true
+			}
+		}
+		return false
 	case "regex":
 		return r.Regexp.MatchString(name)
 	}
