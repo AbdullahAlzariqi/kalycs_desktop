@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"kalycs/internal/logging"
 	"strings"
 	"unicode/utf8"
 
@@ -10,6 +11,7 @@ import (
 // ValidateProject validates a project struct and returns any validation errors
 func ValidateProject(project *db.Project) error {
 	if project == nil {
+		logging.L().Warnw("Project validation failed - project is nil")
 		return ValidationError{
 			Field:   "project",
 			Message: "project cannot be nil",
@@ -47,12 +49,17 @@ func ValidateProject(project *db.Project) error {
 		}
 	}
 
+	if errors.HasErrors() {
+		logging.L().Debugw("Project validation failed", "project_name", project.Name, "errors", errors.Error())
+	}
+
 	return errors.ToError()
 }
 
 // ValidateRule validates a rule struct and returns any validation errors
 func ValidateRule(rule *db.Rule) error {
 	if rule == nil {
+		logging.L().Warnw("Rule validation failed - rule is nil")
 		return ValidationError{
 			Field:   "rule",
 			Message: "rule cannot be nil",
@@ -100,7 +107,16 @@ func ValidateRule(rule *db.Rule) error {
 		}
 	}
 
+	if errors.HasErrors() {
+		logging.L().Debugw("Rule validation failed", "rule_name", rule.Name, "errors", errors.Error())
+	}
+
 	return errors.ToError()
+}
+
+// ValidateID validates a single ID string
+func ValidateID(id string) error {
+	return validateUUID(id)
 }
 
 // validateProjectName validates project name according to business rules

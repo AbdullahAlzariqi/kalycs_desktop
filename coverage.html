@@ -1,0 +1,2291 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>kalycs: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">kalycs/app.go (0.0%)</option>
+				
+				<option value="file1">kalycs/db/db.go (69.0%)</option>
+				
+				<option value="file2">kalycs/internal/classifier/classifier.go (77.3%)</option>
+				
+				<option value="file3">kalycs/internal/database/errors.go (13.0%)</option>
+				
+				<option value="file4">kalycs/internal/database/transaction.go (0.0%)</option>
+				
+				<option value="file5">kalycs/internal/database/utils.go (71.4%)</option>
+				
+				<option value="file6">kalycs/internal/logging/logging.go (82.4%)</option>
+				
+				<option value="file7">kalycs/internal/store/file_repo.go (0.0%)</option>
+				
+				<option value="file8">kalycs/internal/store/project_repo.go (84.2%)</option>
+				
+				<option value="file9">kalycs/internal/store/rule_repo.go (0.0%)</option>
+				
+				<option value="file10">kalycs/internal/store/store.go (0.0%)</option>
+				
+				<option value="file11">kalycs/internal/testutils/db.go (81.0%)</option>
+				
+				<option value="file12">kalycs/internal/utils/downloads.go (0.0%)</option>
+				
+				<option value="file13">kalycs/internal/validation/errors.go (87.5%)</option>
+				
+				<option value="file14">kalycs/internal/validation/rule_validator.go (0.0%)</option>
+				
+				<option value="file15">kalycs/internal/validation/validator.go (77.9%)</option>
+				
+				<option value="file16">kalycs/internal/watcher/watcher.go (69.2%)</option>
+				
+				<option value="file17">kalycs/main.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "context"
+        "database/sql"
+        "io/fs"
+        "kalycs/db"
+        "kalycs/internal/classifier"
+        "kalycs/internal/logging"
+        "kalycs/internal/store"
+        "kalycs/internal/utils"
+        "kalycs/internal/watcher"
+        "path/filepath"
+)
+
+// App struct
+type App struct {
+        ctx        context.Context
+        watcher    watcher.Watcher
+        db         *sql.DB
+        store      *store.Store
+        classifier *classifier.Classifier
+}
+
+// NewApp creates a new App application struct
+func NewApp() *App <span class="cov0" title="0">{
+        return &amp;App{}
+}</span>
+
+// startup is called when the app starts. The context is saved
+// so we can call the runtime methods
+func (a *App) startup(ctx context.Context) <span class="cov0" title="0">{
+        logging.L().Info("Starting up Kalycs")
+        a.ctx = ctx
+
+        err := db.InitializeDatabase()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Fatalw("Failed to initialize database", "error", err)
+        }</span>
+        <span class="cov0" title="0">a.db = db.GetDB()
+
+        a.store = store.NewStore(a.db)
+
+        a.classifier = classifier.NewClassifier(a.store)
+        if err := a.classifier.LoadIncomingProject(a.ctx); err != nil </span><span class="cov0" title="0">{
+                logging.L().Fatalw("Failed to load incoming project", "error", err)
+        }</span>
+        <span class="cov0" title="0">if err := a.classifier.Reload(a.ctx); err != nil </span><span class="cov0" title="0">{
+                logging.L().Fatalw("Failed to load rules", "error", err)
+        }</span>
+
+        <span class="cov0" title="0">downloadsDir, err := utils.GetDownloadsDirectory()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Fatalw("Failed to get downloads directory", "error", err)
+        }</span>
+
+        <span class="cov0" title="0">w, err := watcher.NewWatcher(ctx, downloadsDir, a.classifier)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Fatalw("Failed to create watcher", "error", err)
+        }</span>
+        <span class="cov0" title="0">a.watcher = *w
+        a.watcher.Start()</span>
+}
+
+// domReady is called after the front-end has been loaded
+// func (a *App) domReady(ctx context.Context) {
+//         logging.L().Info("DOM ready")
+// }
+
+func (a *App) shutdown(ctx context.Context) <span class="cov0" title="0">{
+        a.ctx = ctx
+        logging.L().Info("Application shutdown")
+        a.watcher.Stop()
+}</span>
+
+// ImportFolder walks a directory, classifying each file.
+func (a *App) ImportFolder(ctx context.Context, dir string) error <span class="cov0" title="0">{
+        return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov0" title="0">{
+                        logging.L().Errorw("error accessing path during import", "path", path, "error", err)
+                        return err
+                }</span>
+                <span class="cov0" title="0">if d.IsDir() </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+
+                <span class="cov0" title="0">info, err := d.Info()
+                if err != nil </span><span class="cov0" title="0">{
+                        logging.L().Errorw("failed to get file info during import", "path", path, "error", err)
+                        return nil
+                }</span>
+
+                <span class="cov0" title="0">logging.L().Infow("importing and classifying file", "path", path)
+                if err := a.classifier.Classify(ctx, path, info); err != nil </span><span class="cov0" title="0">{
+                        logging.L().Errorw("failed to classify file during import", "path", path, "error", err)
+                }</span>
+
+                <span class="cov0" title="0">return nil</span>
+        })
+}
+
+// ---------------- Project Methods ----------------
+
+func (a *App) ListProjects(ctx context.Context) ([]db.Project, error) <span class="cov0" title="0">{
+        return a.store.Project.GetAll(ctx)
+}</span>
+
+func (a *App) CreateProject(ctx context.Context, p db.Project) error <span class="cov0" title="0">{
+        return a.store.Project.Create(ctx, &amp;p)
+}</span>
+
+func (a *App) UpdateProject(ctx context.Context, p db.Project) error <span class="cov0" title="0">{
+        return a.store.Project.Update(ctx, &amp;p)
+}</span>
+
+func (a *App) DeleteProject(ctx context.Context, id string) error <span class="cov0" title="0">{
+        return a.store.Project.Delete(ctx, id)
+}</span>
+
+// ---------------- Rule Methods ----------------
+
+func (a *App) ListRules(ctx context.Context, projectID string) ([]db.Rule, error) <span class="cov0" title="0">{
+        return a.store.Rule.GetAllByProject(ctx, projectID)
+}</span>
+
+func (a *App) CreateRule(ctx context.Context, r db.Rule) error <span class="cov0" title="0">{
+        err := a.store.Rule.Create(ctx, &amp;r)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">return a.classifier.Reload(ctx)</span>
+}
+
+func (a *App) UpdateRule(ctx context.Context, r db.Rule) error <span class="cov0" title="0">{
+        err := a.store.Rule.Update(ctx, &amp;r)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">return a.classifier.Reload(ctx)</span>
+}
+
+func (a *App) DeleteRule(ctx context.Context, id string) error <span class="cov0" title="0">{
+        err := a.store.Rule.Delete(ctx, id)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">return a.classifier.Reload(ctx)</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package db
+
+import (
+        "database/sql"
+        "fmt"
+        "kalycs/internal/logging"
+        "os"
+        "path/filepath"
+        "runtime"
+        "time"
+
+        _ "github.com/mattn/go-sqlite3"
+)
+
+// Database connection instance
+var db *sql.DB
+
+// Project represents the project schema
+type Project struct {
+        ID          string    `json:"id"`
+        Name        string    `json:"name"`
+        Description string    `json:"description"`
+        IsActive    bool      `json:"is_active"`
+        IsFavourite bool      `json:"is_favourite"`
+        CreatedAt   time.Time `json:"created_at"`
+        UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Rule represents the rules schema
+type Rule struct {
+        ID            string    `json:"id"`
+        Name          string    `json:"name"`
+        ProjectID     string    `json:"project_id"`
+        Rule          string    `json:"rule"`  // starts_with, contains, ends_with, extension, regex
+        Texts         string    `json:"texts"` // JSON array as string
+        CaseSensitive bool      `json:"case_sensitive"`
+        CreatedAt     time.Time `json:"created_at"`
+        UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// File represents the file schema
+type File struct {
+        ID        string         `json:"id"`
+        Path      string         `json:"path"`
+        Name      string         `json:"name"`
+        Ext       string         `json:"ext"`
+        Size      int64          `json:"size"`
+        Mtime     time.Time      `json:"mtime"`
+        ProjectID sql.NullString `json:"project_id"`
+        CreatedAt time.Time      `json:"created_at"`
+        UpdatedAt time.Time      `json:"updated_at"`
+}
+
+// getAppDataDirectory returns the appropriate application data directory for the current OS
+func getAppDataDirectory() (string, error) <span class="cov8" title="1">{
+        var baseDir string
+
+        switch runtime.GOOS </span>{
+        case "windows":<span class="cov0" title="0">
+                baseDir = os.Getenv("APPDATA")
+                if baseDir == "" </span><span class="cov0" title="0">{
+                        homeDir, err := os.UserHomeDir()
+                        if err != nil </span><span class="cov0" title="0">{
+                                return "", fmt.Errorf("failed to get user home directory: %w", err)
+                        }</span>
+                        <span class="cov0" title="0">baseDir = filepath.Join(homeDir, "AppData", "Roaming")</span>
+                }
+        case "darwin":<span class="cov8" title="1"> // macOS
+                homeDir, err := os.UserHomeDir()
+                if err != nil </span><span class="cov8" title="1">{
+                        return "", fmt.Errorf("failed to get user home directory: %w", err)
+                }</span>
+                <span class="cov8" title="1">baseDir = filepath.Join(homeDir, "Library", "Application Support")</span>
+        default:<span class="cov0" title="0">
+                homeDir, err := os.UserHomeDir()
+                if err != nil </span><span class="cov0" title="0">{
+                        return "", fmt.Errorf("failed to get user home directory: %w", err)
+                }</span>
+                <span class="cov0" title="0">baseDir = filepath.Join(homeDir, ".kalycs")</span>
+        }
+
+        <span class="cov8" title="1">appDir := filepath.Join(baseDir, "Kalycs")
+
+        // Create directory if it doesn't exist
+        if err := os.MkdirAll(appDir, 0700); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to create app directory: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return appDir, nil</span>
+}
+
+// InitializeDatabase sets up the SQLite database and creates tables
+func InitializeDatabase() error <span class="cov8" title="1">{
+        // Close existing connection if it exists to prevent connection leaks
+        if db != nil </span><span class="cov8" title="1">{
+                if err := db.Close(); err != nil </span><span class="cov0" title="0">{
+                        logging.L().Warnw("Failed to close existing database connection", "error", err)
+                }</span>
+                <span class="cov8" title="1">db = nil</span> // Clear the reference
+        }
+
+        <span class="cov8" title="1">appDir, err := getAppDataDirectory()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get app directory: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">dbPath := filepath.Join(appDir, "kalycs.db")
+
+        // Open database connection
+        db, err = sql.Open("sqlite3", dbPath+"?_foreign_keys=on&amp;_journal_mode=WAL")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to open database: %w", err)
+        }</span>
+
+        // Test connection
+        <span class="cov8" title="1">if err := db.Ping(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to ping database: %w", err)
+        }</span>
+
+        // Set secure file permissions
+        <span class="cov8" title="1">if err := os.Chmod(dbPath, 0600); err != nil </span><span class="cov0" title="0">{
+                logging.L().Warnw("Failed to set secure permissions on database file", "error", err, "path", dbPath)
+        }</span>
+
+        // Create tables
+        <span class="cov8" title="1">if err := createTables(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create tables: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">logging.L().Info("Database initialized successfully")
+        return nil</span>
+}
+
+// createTables creates the required database tables
+func createTables() error <span class="cov8" title="1">{
+        projectTable := `
+        CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE CHECK(length(name) &lt;= 25),
+                description TEXT CHECK(length(description) &lt;= 200),
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                is_favourite BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`
+
+        ruleTable := `
+        CREATE TABLE IF NOT EXISTS rules (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL CHECK(length(name) &lt;= 25),
+                project_id TEXT NOT NULL,
+                rule TEXT NOT NULL CHECK(rule IN ('starts_with', 'contains', 'ends_with', 'extension', 'regex')),
+                texts TEXT NOT NULL,
+                case_sensitive BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );`
+
+        fileTable := `
+        CREATE TABLE IF NOT EXISTS files (
+                id          TEXT PRIMARY KEY,
+                path        TEXT UNIQUE,
+                name        TEXT NOT NULL,
+                ext         TEXT NOT NULL,
+                size        INTEGER,
+                mtime       DATETIME,
+                project_id  TEXT,
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+        );`
+
+        // Create indexes
+        projectNameIndex := `CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);`
+        ruleProjectIndex := `CREATE INDEX IF NOT EXISTS idx_rules_project_id ON rules(project_id);`
+
+        // Create trigger for updated_at
+        projectTrigger := `
+        CREATE TRIGGER IF NOT EXISTS update_projects_updated_at 
+        AFTER UPDATE ON projects
+        BEGIN
+                UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;`
+
+        ruleTrigger := `
+        CREATE TRIGGER IF NOT EXISTS update_rules_updated_at 
+        AFTER UPDATE ON rules
+        BEGIN
+                UPDATE rules SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;`
+
+        fileTrigger := `
+        CREATE TRIGGER IF NOT EXISTS trg_files_updated_at
+        AFTER UPDATE ON files
+        BEGIN
+                UPDATE files SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;`
+
+        statements := []string{
+                projectTable, ruleTable, fileTable, projectNameIndex, ruleProjectIndex, projectTrigger, ruleTrigger, fileTrigger,
+        }
+
+        for _, stmt := range statements </span><span class="cov8" title="1">{
+                if _, err := db.Exec(stmt); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to execute statement: %w", err)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// CloseDatabase closes the database connection
+func CloseDatabase() error <span class="cov8" title="1">{
+        if db != nil </span><span class="cov8" title="1">{
+                err := db.Close()
+                db = nil // Clear the reference after closing
+                return err
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// GetDB returns the database instance
+func GetDB() *sql.DB <span class="cov8" title="1">{
+        return db
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package classifier
+
+import (
+        "context"
+        "database/sql"
+        "encoding/json"
+        "kalycs/db"
+        "kalycs/internal/logging"
+        "kalycs/internal/store"
+        "os"
+        "path/filepath"
+        "regexp"
+        "strings"
+        "sync"
+)
+
+const IncomingProjectName = "Incoming"
+
+type CompiledRule struct {
+        RuleID        string
+        ProjectID     string
+        Kind          string
+        Texts         []string
+        CaseSensitive bool
+        Regexp        *regexp.Regexp
+        Priority      int
+}
+
+type Classifier struct {
+        mu                sync.RWMutex
+        set               []CompiledRule
+        store             *store.Store
+        incomingProjectID string
+}
+
+func NewClassifier(s *store.Store) *Classifier <span class="cov8" title="1">{
+        return &amp;Classifier{
+                store: s,
+        }
+}</span>
+
+func (c *Classifier) LoadIncomingProject(ctx context.Context) error <span class="cov8" title="1">{
+        incoming, err := c.store.Project.GetByName(ctx, IncomingProjectName)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">if incoming == nil </span><span class="cov8" title="1">{
+                logging.L().Infow("Incoming project not found, creating it", "project_name", IncomingProjectName)
+                newProject := &amp;db.Project{
+                        Name:        IncomingProjectName,
+                        Description: "Default project for unclassified files.",
+                        IsActive:    true,
+                }
+                if err := c.store.Project.Create(ctx, newProject); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">c.incomingProjectID = newProject.ID</span>
+        } else<span class="cov0" title="0"> {
+                c.incomingProjectID = incoming.ID
+        }</span>
+
+        <span class="cov8" title="1">logging.L().Infow("Incoming project loaded", "project_name", IncomingProjectName, "project_id", c.incomingProjectID)
+        return nil</span>
+}
+
+func (c *Classifier) Reload(ctx context.Context) error <span class="cov8" title="1">{
+        rules, err := c.store.Rule.ListActive(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">compiled := make([]CompiledRule, 0, len(rules))
+        for _, r := range rules </span><span class="cov8" title="1">{
+                compiledRule, err := compileRule(r)
+                if err != nil </span><span class="cov0" title="0">{
+                        logging.L().Warnw("Skipping invalid rule", "rule_name", r.Name, "rule_id", r.ID, "error", err)
+                        continue</span>
+                }
+                <span class="cov8" title="1">compiled = append(compiled, compiledRule)</span>
+        }
+
+        <span class="cov8" title="1">c.mu.Lock()
+        c.set = compiled
+        c.mu.Unlock()
+
+        logging.L().Infow("Classifier reloaded", "rule_count", len(c.set))
+        return nil</span>
+}
+
+func compileRule(r db.Rule) (CompiledRule, error) <span class="cov8" title="1">{
+        var texts []string
+        if err := json.Unmarshal([]byte(r.Texts), &amp;texts); err != nil </span><span class="cov0" title="0">{
+                return CompiledRule{}, err
+        }</span>
+
+        <span class="cov8" title="1">cr := CompiledRule{
+                RuleID:        r.ID,
+                ProjectID:     r.ProjectID,
+                Kind:          r.Rule,
+                CaseSensitive: r.CaseSensitive,
+                Texts:         texts,
+        }
+
+        if !cr.CaseSensitive </span><span class="cov8" title="1">{
+                for i, t := range cr.Texts </span><span class="cov8" title="1">{
+                        cr.Texts[i] = strings.ToLower(t)
+                }</span>
+        }
+
+        <span class="cov8" title="1">if cr.Kind == "regex" </span><span class="cov0" title="0">{
+                re, err := regexp.Compile(cr.Texts[0])
+                if err != nil </span><span class="cov0" title="0">{
+                        return CompiledRule{}, err
+                }</span>
+                <span class="cov0" title="0">cr.Regexp = re</span>
+        }
+
+        <span class="cov8" title="1">return cr, nil</span>
+}
+
+func (c *Classifier) Classify(ctx context.Context, absPath string, meta os.FileInfo) error <span class="cov8" title="1">{
+        name := meta.Name()
+        ext := strings.ToLower(filepath.Ext(name))
+        if len(ext) &gt; 0 </span><span class="cov8" title="1">{
+                ext = ext[1:] // remove dot
+        }</span>
+
+        <span class="cov8" title="1">c.mu.RLock()
+        rules := c.set
+        c.mu.RUnlock()
+
+        // TODO: Get default "Incoming" project ID
+        projectID := ""
+        matchedRule := ""
+
+        for _, r := range rules </span><span class="cov8" title="1">{
+                if matches(r, name, ext) </span><span class="cov8" title="1">{
+                        projectID = r.ProjectID
+                        matchedRule = r.RuleID
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">f := &amp;db.File{
+                Path:  absPath,
+                Name:  name,
+                Ext:   ext,
+                Size:  meta.Size(),
+                Mtime: meta.ModTime(),
+        }
+
+        if projectID != "" </span><span class="cov8" title="1">{
+                f.ProjectID = sql.NullString{String: projectID, Valid: true}
+                logging.L().Infow("File classified by rule", "file_path", absPath, "file_name", name, "rule_id", matchedRule, "project_id", projectID)
+        }</span> else<span class="cov8" title="1"> {
+                f.ProjectID = sql.NullString{String: c.incomingProjectID, Valid: true}
+                logging.L().Infow("File classified to incoming project", "file_path", absPath, "file_name", name, "project_id", c.incomingProjectID)
+        }</span>
+
+        <span class="cov8" title="1">err := c.store.File.Upsert(ctx, f)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to upsert classified file", "file_path", absPath, "file_name", name, "error", err)
+        }</span>
+        <span class="cov8" title="1">return err</span>
+}
+
+func matches(r CompiledRule, name, ext string) bool <span class="cov8" title="1">{
+        testName := name
+        if !r.CaseSensitive </span><span class="cov8" title="1">{
+                testName = strings.ToLower(testName)
+        }</span>
+
+        <span class="cov8" title="1">switch r.Kind </span>{
+        case "starts_with":<span class="cov0" title="0">
+                return strings.HasPrefix(testName, r.Texts[0])</span>
+        case "contains":<span class="cov0" title="0">
+                return strings.Contains(testName, r.Texts[0])</span>
+        case "ends_with":<span class="cov0" title="0">
+                return strings.HasSuffix(testName, r.Texts[0])</span>
+        case "extension":<span class="cov8" title="1">
+                // extension is already lowercased
+                return ext == r.Texts[0]</span>
+        case "regex":<span class="cov0" title="0">
+                return r.Regexp.MatchString(name)</span>
+        }
+        <span class="cov0" title="0">return false</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package database
+
+import (
+        "strings"
+)
+
+// DatabaseError represents a database-specific error
+type DatabaseError struct {
+        Type    ErrorType `json:"type"`
+        Message string    `json:"message"`
+        Table   string    `json:"table,omitempty"`
+        Field   string    `json:"field,omitempty"`
+}
+
+// ErrorType represents the type of database error
+type ErrorType string
+
+const (
+        ErrorTypeUniqueConstraint  ErrorType = "unique_constraint"
+        ErrorTypeForeignKey        ErrorType = "foreign_key"
+        ErrorTypeNotNull           ErrorType = "not_null"
+        ErrorTypeCheckConstraint   ErrorType = "check_constraint"
+        ErrorTypeConnectionFailed  ErrorType = "connection_failed"
+        ErrorTypeTransactionFailed ErrorType = "transaction_failed"
+        ErrorTypeUnknown           ErrorType = "unknown"
+)
+
+// Error implements the error interface
+func (e DatabaseError) Error() string <span class="cov0" title="0">{
+        if e.Table != "" &amp;&amp; e.Field != "" </span><span class="cov0" title="0">{
+                return e.Message + " (table: " + e.Table + ", field: " + e.Field + ")"
+        }</span>
+        <span class="cov0" title="0">return e.Message</span>
+}
+
+// IsUniqueConstraintError checks if the error is due to a unique constraint violation
+func IsUniqueConstraintError(err error) bool <span class="cov8" title="1">{
+        if err == nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">errStr := strings.ToLower(err.Error())
+        return strings.Contains(errStr, "unique") ||
+                strings.Contains(errStr, "constraint") ||
+                strings.Contains(errStr, "duplicate")</span>
+}
+
+// IsForeignKeyError checks if the error is due to a foreign key constraint violation
+func IsForeignKeyError(err error) bool <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov0" title="0">errStr := strings.ToLower(err.Error())
+        return strings.Contains(errStr, "foreign key") ||
+                strings.Contains(errStr, "references")</span>
+}
+
+// IsNotNullError checks if the error is due to a not null constraint violation
+func IsNotNullError(err error) bool <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov0" title="0">errStr := strings.ToLower(err.Error())
+        return strings.Contains(errStr, "not null") ||
+                strings.Contains(errStr, "null constraint")</span>
+}
+
+// ClassifyError attempts to classify a database error into a specific type
+func ClassifyError(err error) DatabaseError <span class="cov0" title="0">{
+        if err == nil </span><span class="cov0" title="0">{
+                return DatabaseError{Type: ErrorTypeUnknown, Message: "no error"}
+        }</span>
+
+        <span class="cov0" title="0">errStr := err.Error()
+
+        switch </span>{
+        case IsUniqueConstraintError(err):<span class="cov0" title="0">
+                return DatabaseError{
+                        Type:    ErrorTypeUniqueConstraint,
+                        Message: "unique constraint violation: " + errStr,
+                }</span>
+        case IsForeignKeyError(err):<span class="cov0" title="0">
+                return DatabaseError{
+                        Type:    ErrorTypeForeignKey,
+                        Message: "foreign key constraint violation: " + errStr,
+                }</span>
+        case IsNotNullError(err):<span class="cov0" title="0">
+                return DatabaseError{
+                        Type:    ErrorTypeNotNull,
+                        Message: "not null constraint violation: " + errStr,
+                }</span>
+        default:<span class="cov0" title="0">
+                return DatabaseError{
+                        Type:    ErrorTypeUnknown,
+                        Message: errStr,
+                }</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package database
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "kalycs/internal/logging"
+)
+
+// TransactionFunc represents a function that can be executed within a transaction
+type TransactionFunc func(tx *sql.Tx) error
+
+// WithTransaction executes the given function within a database transaction
+// It automatically handles transaction rollback on error and commit on success
+func WithTransaction(db *sql.DB, fn TransactionFunc) error <span class="cov0" title="0">{
+        return WithTransactionContext(context.Background(), db, fn)
+}</span>
+
+// WithTransactionContext executes the given function within a database transaction with context support
+// It automatically handles transaction rollback on error and commit on success
+func WithTransactionContext(ctx context.Context, db *sql.DB, fn TransactionFunc) error <span class="cov0" title="0">{
+        // Start transaction
+        tx, err := db.BeginTx(ctx, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to begin transaction: %w", err)
+        }</span>
+
+        // Ensure transaction is handled properly
+        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{
+                if p := recover(); p != nil </span><span class="cov0" title="0">{
+                        // Rollback on panic
+                        if rollbackErr := tx.Rollback(); rollbackErr != nil </span><span class="cov0" title="0">{
+                                // Log rollback error but don't override the panic
+                                logging.L().Errorw("Failed to rollback transaction after panic", "error", rollbackErr)
+                        }</span>
+                        <span class="cov0" title="0">panic(p)</span> // Re-panic
+                }
+        }()
+
+        // Execute the function within the transaction
+        <span class="cov0" title="0">if err := fn(tx); err != nil </span><span class="cov0" title="0">{
+                // Rollback on error
+                if rollbackErr := tx.Rollback(); rollbackErr != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("transaction failed: %v, rollback failed: %w", err, rollbackErr)
+                }</span>
+                <span class="cov0" title="0">return fmt.Errorf("transaction failed: %w", err)</span>
+        }
+
+        // Commit transaction
+        <span class="cov0" title="0">if err := tx.Commit(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to commit transaction: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// TransactionOptions represents options for transaction configuration
+type TransactionOptions struct {
+        Isolation sql.IsolationLevel
+        ReadOnly  bool
+}
+
+// WithTransactionOptions executes the given function within a database transaction with custom options
+func WithTransactionOptions(ctx context.Context, db *sql.DB, opts *TransactionOptions, fn TransactionFunc) error <span class="cov0" title="0">{
+        var txOpts *sql.TxOptions
+        if opts != nil </span><span class="cov0" title="0">{
+                txOpts = &amp;sql.TxOptions{
+                        Isolation: opts.Isolation,
+                        ReadOnly:  opts.ReadOnly,
+                }
+        }</span>
+
+        // Start transaction with options
+        <span class="cov0" title="0">tx, err := db.BeginTx(ctx, txOpts)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to begin transaction: %w", err)
+        }</span>
+
+        // Ensure transaction is handled properly
+        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{
+                if p := recover(); p != nil </span><span class="cov0" title="0">{
+                        // Rollback on panic
+                        if rollbackErr := tx.Rollback(); rollbackErr != nil </span><span class="cov0" title="0">{
+                                logging.L().Errorw("Failed to rollback transaction after panic", "error", rollbackErr)
+                        }</span>
+                        <span class="cov0" title="0">panic(p)</span> // Re-panic
+                }
+        }()
+
+        // Execute the function within the transaction
+        <span class="cov0" title="0">if err := fn(tx); err != nil </span><span class="cov0" title="0">{
+                // Rollback on error
+                if rollbackErr := tx.Rollback(); rollbackErr != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("transaction failed: %v, rollback failed: %w", err, rollbackErr)
+                }</span>
+                <span class="cov0" title="0">return fmt.Errorf("transaction failed: %w", err)</span>
+        }
+
+        // Commit transaction
+        <span class="cov0" title="0">if err := tx.Commit(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to commit transaction: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package database
+
+import (
+        "time"
+
+        "kalycs/db"
+
+        "github.com/google/uuid"
+)
+
+// GenerateID generates a new UUID string
+func GenerateID() string <span class="cov8" title="1">{
+        return uuid.New().String()
+}</span>
+
+// PrepareProjectForCreation prepares a project for database insertion
+// Sets ID if empty and sets creation/update timestamps
+func PrepareProjectForCreation(project *db.Project) <span class="cov8" title="1">{
+        now := time.Now().UTC()
+
+        if project.ID == "" </span><span class="cov8" title="1">{
+                project.ID = GenerateID()
+        }</span>
+
+        <span class="cov8" title="1">project.CreatedAt = now
+        project.UpdatedAt = now</span>
+}
+
+// PrepareProjectForUpdate prepares a project for database update
+// Sets the updated timestamp
+func PrepareProjectForUpdate(project *db.Project) <span class="cov8" title="1">{
+        project.UpdatedAt = time.Now().UTC()
+}</span>
+
+// PrepareRuleForCreation prepares a rule for database insertion
+// Sets ID if empty and sets creation/update timestamps
+func PrepareRuleForCreation(rule *db.Rule) <span class="cov0" title="0">{
+        now := time.Now().UTC()
+
+        if rule.ID == "" </span><span class="cov0" title="0">{
+                rule.ID = GenerateID()
+        }</span>
+
+        <span class="cov0" title="0">rule.CreatedAt = now
+        rule.UpdatedAt = now</span>
+}
+
+// PrepareRuleForUpdate prepares a rule for database update
+// Sets the updated timestamp
+func PrepareRuleForUpdate(rule *db.Rule) <span class="cov0" title="0">{
+        rule.UpdatedAt = time.Now().UTC()
+}</span>
+
+// NormalizeProjectData normalizes project data by trimming whitespace
+func NormalizeProjectData(project *db.Project) <span class="cov8" title="1">{
+        project.Name = normalizeString(project.Name)
+        project.Description = normalizeString(project.Description)
+}</span>
+
+// NormalizeRuleData normalizes rule data by trimming whitespace
+func NormalizeRuleData(rule *db.Rule) <span class="cov0" title="0">{
+        rule.Name = normalizeString(rule.Name)
+        rule.Texts = normalizeString(rule.Texts)
+}</span>
+
+// normalizeString trims whitespace from a string
+func normalizeString(s string) string <span class="cov8" title="1">{
+        if s == "" </span><span class="cov8" title="1">{
+                return s
+        }</span>
+        // Only trim if not empty to preserve intentional empty strings
+        <span class="cov8" title="1">return trimWhitespace(s)</span>
+}
+
+// trimWhitespace is a helper function to trim whitespace
+func trimWhitespace(s string) string <span class="cov8" title="1">{
+        // Remove leading and trailing whitespace
+        start := 0
+        end := len(s)
+
+        // Find first non-whitespace character
+        for start &lt; end &amp;&amp; isWhitespace(s[start]) </span><span class="cov8" title="1">{
+                start++
+        }</span>
+
+        // Find last non-whitespace character
+        <span class="cov8" title="1">for end &gt; start &amp;&amp; isWhitespace(s[end-1]) </span><span class="cov8" title="1">{
+                end--
+        }</span>
+
+        <span class="cov8" title="1">return s[start:end]</span>
+}
+
+// isWhitespace checks if a byte is a whitespace character
+func isWhitespace(b byte) bool <span class="cov8" title="1">{
+        return b == ' ' || b == '\t' || b == '\n' || b == '\r' || b == '\f' || b == '\v'
+}</span>
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package logging
+
+import (
+        "os"
+
+        "go.uber.org/zap"
+        "go.uber.org/zap/zapcore"
+)
+
+var logger *zap.SugaredLogger
+
+// Init initialises the global zap logger.
+// It chooses the configuration based on the APP_ENV environment variable.
+// If APP_ENV is set to "development", a human-friendly development configuration is used.
+// Otherwise, a production configuration is created.
+func Init() <span class="cov8" title="1">{
+        if logger != nil </span><span class="cov0" title="0">{
+                // Already initialised
+                return
+        }</span>
+
+        <span class="cov8" title="1">var l *zap.Logger
+        var err error
+
+        if os.Getenv("APP_ENV") == "development" </span><span class="cov0" title="0">{
+                l, err = zap.NewDevelopment()
+        }</span> else<span class="cov8" title="1"> {
+                // Use production config with ISO8601 timestamps for easier reading
+                cfg := zap.NewProductionConfig()
+                cfg.Encoding = "json"
+                cfg.EncoderConfig.TimeKey = "timestamp"
+                cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+                l, err = cfg.Build()
+        }</span>
+
+        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
+                panic("failed to initialise logger: " + err.Error())</span>
+        }
+
+        <span class="cov8" title="1">logger = l.Sugar()</span>
+}
+
+// L returns the global *zap.SugaredLogger instance.
+// If it has not been initialised yet, Init() will be called implicitly.
+func L() *zap.SugaredLogger <span class="cov8" title="1">{
+        if logger == nil </span><span class="cov8" title="1">{
+                Init()
+        }</span>
+        <span class="cov8" title="1">return logger</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package store
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "kalycs/db"
+        "kalycs/internal/database"
+        "kalycs/internal/logging"
+)
+
+type FileRepo interface {
+        Upsert(ctx context.Context, f *db.File) error
+        SetProject(ctx context.Context, fileID string, projectID string) error
+        ByProject(ctx context.Context, projectID string) ([]db.File, error)
+        GetByPath(ctx context.Context, path string) (*db.File, error)
+}
+
+type fileRepo struct {
+        db *sql.DB
+}
+
+func NewFileRepo(db *sql.DB) FileRepo <span class="cov0" title="0">{
+        return &amp;fileRepo{db: db}
+}</span>
+
+func (r *fileRepo) GetByPath(ctx context.Context, path string) (*db.File, error) <span class="cov0" title="0">{
+        q := `SELECT id, path, name, ext, size, mtime, project_id, created_at, updated_at FROM files WHERE path = ?`
+        row := r.db.QueryRowContext(ctx, q, path)
+        f := &amp;db.File{}
+        err := row.Scan(&amp;f.ID, &amp;f.Path, &amp;f.Name, &amp;f.Ext, &amp;f.Size, &amp;f.Mtime, &amp;f.ProjectID, &amp;f.CreatedAt, &amp;f.UpdatedAt)
+        if err != nil </span><span class="cov0" title="0">{
+                if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+                        return nil, nil // Not found is not an error, just means no file
+                }</span>
+                <span class="cov0" title="0">return nil, err</span>
+        }
+        <span class="cov0" title="0">return f, nil</span>
+}
+
+func (r *fileRepo) Upsert(ctx context.Context, f *db.File) error <span class="cov0" title="0">{
+        // Use ON CONFLICT to perform an upsert. This is more atomic and efficient.
+        q := `
+        INSERT INTO files (id, path, name, ext, size, mtime, project_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+                name = excluded.name,
+                ext = excluded.ext,
+                size = excluded.size,
+                mtime = excluded.mtime,
+                project_id = excluded.project_id,
+                updated_at = CURRENT_TIMESTAMP`
+
+        // If the file doesn't have an ID, it's new, so we generate one.
+        if f.ID == "" </span><span class="cov0" title="0">{
+                f.ID = database.GenerateID()
+        }</span>
+
+        <span class="cov0" title="0">_, err := r.db.ExecContext(ctx, q, f.ID, f.Path, f.Name, f.Ext, f.Size, f.Mtime, f.ProjectID)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to upsert file", "file_path", f.Path, "file_name", f.Name, "error", err)
+                return err
+        }</span>
+
+        // Log successful upsert with project assignment
+        <span class="cov0" title="0">projectID := "unassigned"
+        if f.ProjectID.Valid </span><span class="cov0" title="0">{
+                projectID = f.ProjectID.String
+        }</span>
+        <span class="cov0" title="0">logging.L().Infow("File upserted successfully", "file_path", f.Path, "file_name", f.Name, "project_id", projectID, "size_bytes", f.Size)
+        return nil</span>
+}
+
+func (r *fileRepo) SetProject(ctx context.Context, fileID string, projectID string) error <span class="cov0" title="0">{
+        var pid interface{}
+        if projectID == "" </span><span class="cov0" title="0">{
+                pid = nil
+        }</span> else<span class="cov0" title="0"> {
+                pid = projectID
+        }</span>
+
+        <span class="cov0" title="0">q := `UPDATE files SET project_id = ? WHERE id = ?`
+        result, err := r.db.ExecContext(ctx, q, pid, fileID)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to set project for file", "file_id", fileID, "project_id", projectID, "error", err)
+                return err
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to get rows affected for file project update", "file_id", fileID, "error", err)
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if rowsAffected == 0 </span><span class="cov0" title="0">{
+                logging.L().Warnw("File project update failed - file not found", "file_id", fileID)
+                return fmt.Errorf("file with ID '%s' not found", fileID)
+        }</span>
+
+        <span class="cov0" title="0">logging.L().Infow("File project updated successfully", "file_id", fileID, "project_id", projectID)
+        return nil</span>
+}
+
+func (r *fileRepo) ByProject(ctx context.Context, projectID string) ([]db.File, error) <span class="cov0" title="0">{
+        q := `SELECT id, path, name, ext, size, mtime, project_id, created_at, updated_at FROM files WHERE project_id = ?`
+        rows, err := r.db.QueryContext(ctx, q, projectID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        var files []db.File
+        for rows.Next() </span><span class="cov0" title="0">{
+                var f db.File
+                if err := rows.Scan(&amp;f.ID, &amp;f.Path, &amp;f.Name, &amp;f.Ext, &amp;f.Size, &amp;f.Mtime, &amp;f.ProjectID, &amp;f.CreatedAt, &amp;f.UpdatedAt); err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov0" title="0">files = append(files, f)</span>
+        }
+
+        <span class="cov0" title="0">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return files, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package store
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+
+        "kalycs/db"
+        "kalycs/internal/database"
+        "kalycs/internal/logging"
+        "kalycs/internal/validation"
+)
+
+// projectRepo implements ProjectRepo
+// (moved from repo.go)
+type projectRepo struct {
+        db *sql.DB
+}
+
+// ProjectRepo defines methods for project data access
+type ProjectRepo interface {
+        GetByID(ctx context.Context, id string) (*db.Project, error)
+        GetByName(ctx context.Context, name string) (*db.Project, error)
+        GetAll(ctx context.Context) ([]db.Project, error)
+        Create(ctx context.Context, project *db.Project) error
+        Update(ctx context.Context, project *db.Project) error
+        Delete(ctx context.Context, id string) error
+}
+
+// NewProjectRepo creates a new instance of ProjectRepo with the given database connection
+func NewProjectRepo(db *sql.DB) ProjectRepo <span class="cov8" title="1">{
+        return &amp;projectRepo{db: db}
+}</span>
+
+func (r *projectRepo) GetByID(ctx context.Context, id string) (*db.Project, error) <span class="cov8" title="1">{
+        // Input validation
+        if id == "" </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("project ID cannot be empty")
+        }</span>
+
+        <span class="cov8" title="1">if err := validation.ValidateID(id); err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("invalid project ID format: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">query := `
+                SELECT id, name, description, is_active, is_favourite, created_at, updated_at
+                FROM projects
+                WHERE id = ?
+        `
+
+        project := &amp;db.Project{}
+        err := r.db.QueryRowContext(ctx, query, id).Scan(
+                &amp;project.ID,
+                &amp;project.Name,
+                &amp;project.Description,
+                &amp;project.IsActive,
+                &amp;project.IsFavourite,
+                &amp;project.CreatedAt,
+                &amp;project.UpdatedAt,
+        )
+
+        if err != nil </span><span class="cov8" title="1">{
+                if err == sql.ErrNoRows </span><span class="cov8" title="1">{
+                        return nil, fmt.Errorf("project with ID '%s' not found", id)
+                }</span>
+                <span class="cov0" title="0">return nil, fmt.Errorf("failed to get project: %w", err)</span>
+        }
+
+        <span class="cov8" title="1">return project, nil</span>
+}
+
+func (r *projectRepo) GetByName(ctx context.Context, name string) (*db.Project, error) <span class="cov8" title="1">{
+        query := `
+                SELECT id, name, description, is_active, is_favourite, created_at, updated_at
+                FROM projects
+                WHERE name = ?
+        `
+
+        project := &amp;db.Project{}
+        err := r.db.QueryRowContext(ctx, query, name).Scan(
+                &amp;project.ID,
+                &amp;project.Name,
+                &amp;project.Description,
+                &amp;project.IsActive,
+                &amp;project.IsFavourite,
+                &amp;project.CreatedAt,
+                &amp;project.UpdatedAt,
+        )
+
+        if err != nil </span><span class="cov8" title="1">{
+                if err == sql.ErrNoRows </span><span class="cov8" title="1">{
+                        return nil, nil // Not an error, just not found
+                }</span>
+                <span class="cov0" title="0">return nil, fmt.Errorf("failed to get project by name: %w", err)</span>
+        }
+
+        <span class="cov8" title="1">return project, nil</span>
+}
+
+func (r *projectRepo) GetAll(ctx context.Context) ([]db.Project, error) <span class="cov8" title="1">{
+        query := `
+                SELECT id, name, description, is_active, is_favourite, created_at, updated_at
+                FROM projects
+                ORDER BY created_at DESC
+        `
+
+        rows, err := r.db.QueryContext(ctx, query)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to query projects: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+
+        var projects []db.Project
+        for rows.Next() </span><span class="cov8" title="1">{
+                var project db.Project
+                err := rows.Scan(
+                        &amp;project.ID,
+                        &amp;project.Name,
+                        &amp;project.Description,
+                        &amp;project.IsActive,
+                        &amp;project.IsFavourite,
+                        &amp;project.CreatedAt,
+                        &amp;project.UpdatedAt,
+                )
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("failed to scan project: %w", err)
+                }</span>
+                <span class="cov8" title="1">projects = append(projects, project)</span>
+        }
+
+        <span class="cov8" title="1">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("error during row iteration: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return projects, nil</span>
+}
+
+// Create creates a new project with context support for cancellation and timeouts
+func (r *projectRepo) Create(ctx context.Context, project *db.Project) error <span class="cov8" title="1">{
+        // Input validation
+        if project == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("project cannot be nil")
+        }</span>
+
+        // Validate using validation package
+        <span class="cov8" title="1">if err := validation.ValidateProject(project); err != nil </span><span class="cov8" title="1">{
+                logging.L().Warnw("Project validation failed", "error", err)
+                return fmt.Errorf("validation failed: %w", err)
+        }</span>
+
+        // Normalize and prepare data for creation
+        <span class="cov8" title="1">database.NormalizeProjectData(project)
+        database.PrepareProjectForCreation(project)
+
+        // Direct insert - no transaction needed for simple insert
+        query := `
+                INSERT INTO projects (id, name, description, is_active, is_favourite, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+
+        _, err := r.db.ExecContext(ctx, query,
+                project.ID,
+                project.Name,
+                project.Description,
+                project.IsActive,
+                project.IsFavourite,
+                project.CreatedAt,
+                project.UpdatedAt,
+        )
+
+        if err != nil </span><span class="cov8" title="1">{
+                // Handle specific database errors using database utilities
+                if database.IsUniqueConstraintError(err) </span><span class="cov8" title="1">{
+                        logging.L().Warnw("Project creation failed - name already exists", "project_name", project.Name, "error", err)
+                        return fmt.Errorf("project with name '%s' already exists", project.Name)
+                }</span>
+                <span class="cov8" title="1">logging.L().Errorw("Failed to create project", "project_name", project.Name, "error", err)
+                return fmt.Errorf("failed to create project: %w", err)</span>
+        }
+
+        <span class="cov8" title="1">logging.L().Infow("Project created successfully", "project_id", project.ID, "project_name", project.Name)
+        return nil</span>
+}
+
+func (r *projectRepo) Update(ctx context.Context, project *db.Project) error <span class="cov8" title="1">{
+        // Input validation
+        if project == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("project cannot be nil")
+        }</span>
+
+        <span class="cov8" title="1">if project.ID == "" </span><span class="cov8" title="1">{
+                return fmt.Errorf("project ID cannot be empty for update")
+        }</span>
+
+        // Validate using validation package
+        <span class="cov8" title="1">if err := validation.ValidateProject(project); err != nil </span><span class="cov8" title="1">{
+                logging.L().Warnw("Project validation failed during update", "project_id", project.ID, "error", err)
+                return fmt.Errorf("validation failed: %w", err)
+        }</span>
+
+        // Normalize and prepare data for update
+        <span class="cov8" title="1">database.NormalizeProjectData(project)
+        database.PrepareProjectForUpdate(project)
+
+        query := `
+                UPDATE projects 
+                SET name = ?, description = ?, is_active = ?, is_favourite = ?, updated_at = ?
+                WHERE id = ?
+        `
+
+        result, err := r.db.ExecContext(ctx, query,
+                project.Name,
+                project.Description,
+                project.IsActive,
+                project.IsFavourite,
+                project.UpdatedAt,
+                project.ID,
+        )
+
+        if err != nil </span><span class="cov8" title="1">{
+                // Handle specific database errors using database utilities
+                if database.IsUniqueConstraintError(err) </span><span class="cov8" title="1">{
+                        logging.L().Warnw("Project update failed - name already exists", "project_id", project.ID, "project_name", project.Name, "error", err)
+                        return fmt.Errorf("project with name '%s' already exists", project.Name)
+                }</span>
+                <span class="cov0" title="0">logging.L().Errorw("Failed to update project", "project_id", project.ID, "project_name", project.Name, "error", err)
+                return fmt.Errorf("failed to update project: %w", err)</span>
+        }
+
+        // Check if any rows were affected
+        <span class="cov8" title="1">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to get rows affected for project update", "project_id", project.ID, "error", err)
+                return fmt.Errorf("failed to get rows affected: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if rowsAffected == 0 </span><span class="cov8" title="1">{
+                logging.L().Warnw("Project update failed - project not found", "project_id", project.ID)
+                return fmt.Errorf("project with ID '%s' not found", project.ID)
+        }</span>
+
+        <span class="cov8" title="1">logging.L().Infow("Project updated successfully", "project_id", project.ID, "project_name", project.Name)
+        return nil</span>
+}
+
+func (r *projectRepo) Delete(ctx context.Context, id string) error <span class="cov8" title="1">{
+        // Input validation
+        if id == "" </span><span class="cov8" title="1">{
+                return fmt.Errorf("project ID cannot be empty")
+        }</span>
+
+        <span class="cov8" title="1">if err := validation.ValidateID(id); err != nil </span><span class="cov8" title="1">{
+                logging.L().Warnw("Invalid project ID format for deletion", "project_id", id, "error", err)
+                return fmt.Errorf("invalid project ID format: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">query := `DELETE FROM projects WHERE id = ?`
+
+        result, err := r.db.ExecContext(ctx, query, id)
+        if err != nil </span><span class="cov0" title="0">{
+                // Handle specific database errors using database utilities
+                if database.IsForeignKeyError(err) </span><span class="cov0" title="0">{
+                        logging.L().Warnw("Project deletion failed - has associated rules", "project_id", id, "error", err)
+                        return fmt.Errorf("cannot delete project '%s': it has associated rules", id)
+                }</span>
+                <span class="cov0" title="0">logging.L().Errorw("Failed to delete project", "project_id", id, "error", err)
+                return fmt.Errorf("failed to delete project: %w", err)</span>
+        }
+
+        // Check if any rows were affected
+        <span class="cov8" title="1">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to get rows affected for project deletion", "project_id", id, "error", err)
+                return fmt.Errorf("failed to get rows affected: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if rowsAffected == 0 </span><span class="cov8" title="1">{
+                logging.L().Warnw("Project deletion failed - project not found", "project_id", id)
+                return fmt.Errorf("project with ID '%s' not found", id)
+        }</span>
+
+        <span class="cov8" title="1">logging.L().Infow("Project deleted successfully", "project_id", id)
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package store
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "kalycs/db"
+        "kalycs/internal/database"
+        "kalycs/internal/logging"
+        "kalycs/internal/validation"
+)
+
+// ruleRepo implements RuleRepo
+// (moved from repo.go)
+type ruleRepo struct {
+        db        *sql.DB
+        validator *validation.RuleValidator
+}
+
+// RuleRepo defines methods for rule data access
+type RuleRepo interface {
+        GetByID(ctx context.Context, id string) (*db.Rule, error)
+        GetAllByProject(ctx context.Context, projectID string) ([]db.Rule, error)
+        ListActive(ctx context.Context) ([]db.Rule, error)
+        Create(ctx context.Context, rule *db.Rule) error
+        Update(ctx context.Context, rule *db.Rule) error
+        Delete(ctx context.Context, id string) error
+}
+
+func NewRuleRepo(db *sql.DB) RuleRepo <span class="cov0" title="0">{
+        return &amp;ruleRepo{
+                db:        db,
+                validator: validation.NewRuleValidator(),
+        }
+}</span>
+
+func (r *ruleRepo) GetByID(ctx context.Context, id string) (*db.Rule, error) <span class="cov0" title="0">{
+        q := `SELECT id, name, project_id, rule, texts, case_sensitive, created_at, updated_at FROM rules WHERE id = ?`
+        row := r.db.QueryRowContext(ctx, q, id)
+        rule := &amp;db.Rule{}
+        err := row.Scan(&amp;rule.ID, &amp;rule.Name, &amp;rule.ProjectID, &amp;rule.Rule, &amp;rule.Texts, &amp;rule.CaseSensitive, &amp;rule.CreatedAt, &amp;rule.UpdatedAt)
+        if err != nil </span><span class="cov0" title="0">{
+                if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+                        return nil, nil // Consider not found as nil, not an error
+                }</span>
+                <span class="cov0" title="0">return nil, err</span>
+        }
+        <span class="cov0" title="0">return rule, nil</span>
+}
+
+func (r *ruleRepo) GetAllByProject(ctx context.Context, projectID string) ([]db.Rule, error) <span class="cov0" title="0">{
+        q := `SELECT id, name, project_id, rule, texts, case_sensitive, created_at, updated_at FROM rules WHERE project_id = ?`
+        rows, err := r.db.QueryContext(ctx, q, projectID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        var rules []db.Rule
+        for rows.Next() </span><span class="cov0" title="0">{
+                var rule db.Rule
+                if err := rows.Scan(&amp;rule.ID, &amp;rule.Name, &amp;rule.ProjectID, &amp;rule.Rule, &amp;rule.Texts, &amp;rule.CaseSensitive, &amp;rule.CreatedAt, &amp;rule.UpdatedAt); err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov0" title="0">rules = append(rules, rule)</span>
+        }
+        <span class="cov0" title="0">return rules, rows.Err()</span>
+}
+
+func (r *ruleRepo) ListActive(ctx context.Context) ([]db.Rule, error) <span class="cov0" title="0">{
+        q := `
+        SELECT r.id, r.name, r.project_id, r.rule, r.texts, r.case_sensitive, r.created_at, r.updated_at
+        FROM rules r
+        INNER JOIN projects p ON r.project_id = p.id
+        WHERE p.is_active = 1`
+        rows, err := r.db.QueryContext(ctx, q)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        var rules []db.Rule
+        for rows.Next() </span><span class="cov0" title="0">{
+                var rule db.Rule
+                if err := rows.Scan(&amp;rule.ID, &amp;rule.Name, &amp;rule.ProjectID, &amp;rule.Rule, &amp;rule.Texts, &amp;rule.CaseSensitive, &amp;rule.CreatedAt, &amp;rule.UpdatedAt); err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov0" title="0">rules = append(rules, rule)</span>
+        }
+        <span class="cov0" title="0">return rules, rows.Err()</span>
+}
+
+func (r *ruleRepo) Create(ctx context.Context, rule *db.Rule) error <span class="cov0" title="0">{
+        if err := r.validator.Validate(rule); err != nil </span><span class="cov0" title="0">{
+                logging.L().Warnw("Rule validation failed", "rule_name", rule.Name, "error", err)
+                return err
+        }</span>
+        <span class="cov0" title="0">rule.ID = database.GenerateID()
+        q := `INSERT INTO rules (id, name, project_id, rule, texts, case_sensitive) VALUES (?, ?, ?, ?, ?, ?)`
+        _, err := r.db.ExecContext(ctx, q, rule.ID, rule.Name, rule.ProjectID, rule.Rule, rule.Texts, rule.CaseSensitive)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to create rule", "rule_id", rule.ID, "rule_name", rule.Name, "project_id", rule.ProjectID, "error", err)
+                return err
+        }</span>
+        <span class="cov0" title="0">logging.L().Infow("Rule created successfully", "rule_id", rule.ID, "rule_name", rule.Name, "project_id", rule.ProjectID)
+        return nil</span>
+}
+
+func (r *ruleRepo) Update(ctx context.Context, rule *db.Rule) error <span class="cov0" title="0">{
+        if err := r.validator.Validate(rule); err != nil </span><span class="cov0" title="0">{
+                logging.L().Warnw("Rule validation failed during update", "rule_id", rule.ID, "rule_name", rule.Name, "error", err)
+                return err
+        }</span>
+        <span class="cov0" title="0">q := `UPDATE rules SET name = ?, project_id = ?, rule = ?, texts = ?, case_sensitive = ? WHERE id = ?`
+        result, err := r.db.ExecContext(ctx, q, rule.Name, rule.ProjectID, rule.Rule, rule.Texts, rule.CaseSensitive, rule.ID)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to update rule", "rule_id", rule.ID, "rule_name", rule.Name, "error", err)
+                return err
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to get rows affected for rule update", "rule_id", rule.ID, "error", err)
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if rowsAffected == 0 </span><span class="cov0" title="0">{
+                logging.L().Warnw("Rule update failed - rule not found", "rule_id", rule.ID)
+                return fmt.Errorf("rule with ID '%s' not found", rule.ID)
+        }</span>
+
+        <span class="cov0" title="0">logging.L().Infow("Rule updated successfully", "rule_id", rule.ID, "rule_name", rule.Name, "project_id", rule.ProjectID)
+        return nil</span>
+}
+
+func (r *ruleRepo) Delete(ctx context.Context, id string) error <span class="cov0" title="0">{
+        q := `DELETE FROM rules WHERE id = ?`
+        result, err := r.db.ExecContext(ctx, q, id)
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to delete rule", "rule_id", id, "error", err)
+                return err
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("Failed to get rows affected for rule deletion", "rule_id", id, "error", err)
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if rowsAffected == 0 </span><span class="cov0" title="0">{
+                logging.L().Warnw("Rule deletion failed - rule not found", "rule_id", id)
+                return fmt.Errorf("rule with ID '%s' not found", id)
+        }</span>
+
+        <span class="cov0" title="0">logging.L().Infow("Rule deleted successfully", "rule_id", id)
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package store
+
+import (
+        "database/sql"
+)
+
+// Store holds all repository instances
+type Store struct {
+        Project ProjectRepo
+        Rule    RuleRepo
+        File    FileRepo
+}
+
+// NewStore initializes the repository store with the given *sql.DB
+func NewStore(db *sql.DB) *Store <span class="cov0" title="0">{
+        return &amp;Store{
+                Project: NewProjectRepo(db),
+                Rule:    NewRuleRepo(db),
+                File:    NewFileRepo(db),
+        }
+}</span>
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package testutils
+
+import (
+        "database/sql"
+        "kalycs/db"
+        "os"
+        "runtime"
+        "testing"
+
+        _ "github.com/mattn/go-sqlite3"
+)
+
+// PrepareTestEnv sets up a temporary environment for testing
+func PrepareTestEnv(t *testing.T) string <span class="cov8" title="1">{
+        t.Helper()
+        tmpDir := t.TempDir()
+
+        // Store original values
+        originalAppData := os.Getenv("APPDATA")
+        originalHome := os.Getenv("HOME")
+
+        switch runtime.GOOS </span>{
+        case "windows":<span class="cov0" title="0">
+                os.Setenv("APPDATA", tmpDir)</span>
+        }
+        // For both darwin and other linux/unix systems
+        <span class="cov8" title="1">os.Setenv("HOME", tmpDir)
+
+        t.Cleanup(func() </span><span class="cov8" title="1">{
+                os.Setenv("APPDATA", originalAppData)
+                os.Setenv("HOME", originalHome)
+        }</span>)
+
+        <span class="cov8" title="1">return tmpDir</span>
+}
+
+// SetupTestDB initializes a test database
+func SetupTestDB(t *testing.T) *sql.DB <span class="cov8" title="1">{
+        t.Helper()
+
+        if err := db.InitializeDatabase(); err != nil </span><span class="cov0" title="0">{
+                t.Fatalf("Failed to initialize test database: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">testDB := db.GetDB()
+        if testDB == nil </span><span class="cov0" title="0">{
+                t.Fatalf("Failed to get database connection")
+        }</span>
+
+        <span class="cov8" title="1">t.Cleanup(func() </span><span class="cov8" title="1">{
+                if err := db.CloseDatabase(); err != nil </span><span class="cov0" title="0">{
+                        t.Errorf("Failed to close test database: %v", err)
+                }</span>
+        })
+
+        <span class="cov8" title="1">return testDB</span>
+}
+</pre>
+		
+		<pre class="file" id="file12" style="display: none">package utils
+
+import (
+        "errors"
+        "kalycs/internal/logging"
+        "os"
+        "path/filepath"
+        "runtime"
+)
+
+// GetDownloadsDirectory returns the default downloads directory for the current user.
+// It supports Windows and macOS. For other operating systems, it returns an error.
+func GetDownloadsDirectory() (string, error) <span class="cov0" title="0">{
+        logging.L().Info("Attempting to get downloads directory...")
+        homeDir, err := os.UserHomeDir()
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Errorw("could not get user home directory", "error", err)
+                return "", err
+        }</span>
+
+        <span class="cov0" title="0">downloadsPath := filepath.Join(homeDir, "Downloads")
+
+        switch runtime.GOOS </span>{
+        case "windows", "darwin":<span class="cov0" title="0">
+                logging.L().Infow("Downloads directory found", "os", runtime.GOOS, "path", downloadsPath)
+                return downloadsPath, nil</span>
+        }
+
+        <span class="cov0" title="0">err = errors.New("unsupported operating system: " + runtime.GOOS)
+        logging.L().Warnw("Unsupported operating system", "os", runtime.GOOS)
+        return "", err</span>
+}
+</pre>
+		
+		<pre class="file" id="file13" style="display: none">package validation
+
+import "fmt"
+
+// ValidationError represents a validation error with field-specific details
+type ValidationError struct {
+        Field   string `json:"field"`
+        Message string `json:"message"`
+        Value   string `json:"value,omitempty"`
+}
+
+// Error implements the error interface
+func (e ValidationError) Error() string <span class="cov8" title="1">{
+        if e.Value != "" </span><span class="cov8" title="1">{
+                return fmt.Sprintf("validation failed for field '%s': %s (value: %s)", e.Field, e.Message, e.Value)
+        }</span>
+        <span class="cov8" title="1">return fmt.Sprintf("validation failed for field '%s': %s", e.Field, e.Message)</span>
+}
+
+// ValidationErrors represents multiple validation errors
+type ValidationErrors []ValidationError
+
+// Error implements the error interface
+func (e ValidationErrors) Error() string <span class="cov8" title="1">{
+        if len(e) == 0 </span><span class="cov0" title="0">{
+                return "no validation errors"
+        }</span>
+        <span class="cov8" title="1">if len(e) == 1 </span><span class="cov8" title="1">{
+                return e[0].Error()
+        }</span>
+        <span class="cov0" title="0">return fmt.Sprintf("validation failed with %d errors: %s", len(e), e[0].Message)</span>
+}
+
+// Add appends a new validation error
+func (e *ValidationErrors) Add(field, message string, value ...string) <span class="cov8" title="1">{
+        val := ""
+        if len(value) &gt; 0 </span><span class="cov8" title="1">{
+                val = value[0]
+        }</span>
+        <span class="cov8" title="1">*e = append(*e, ValidationError{
+                Field:   field,
+                Message: message,
+                Value:   val,
+        })</span>
+}
+
+// HasErrors returns true if there are validation errors
+func (e ValidationErrors) HasErrors() bool <span class="cov8" title="1">{
+        return len(e) &gt; 0
+}</span>
+
+// ToError returns the ValidationErrors as an error if there are any errors, otherwise nil
+func (e ValidationErrors) ToError() error <span class="cov8" title="1">{
+        if e.HasErrors() </span><span class="cov8" title="1">{
+                return e
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file14" style="display: none">package validation
+
+import (
+        "encoding/json"
+        "fmt"
+        "kalycs/db"
+        "regexp"
+        "strings"
+)
+
+type RuleValidator struct{}
+
+func NewRuleValidator() *RuleValidator <span class="cov0" title="0">{
+        return &amp;RuleValidator{}
+}</span>
+
+func (v *RuleValidator) Validate(r *db.Rule) error <span class="cov0" title="0">{
+        // 1. Trim whitespace
+        r.Name = strings.TrimSpace(r.Name)
+
+        var texts []string
+        if err := json.Unmarshal([]byte(r.Texts), &amp;texts); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("invalid texts format: must be a JSON array of strings")
+        }</span>
+
+        <span class="cov0" title="0">trimmedTexts := make([]string, 0, len(texts))
+        for _, text := range texts </span><span class="cov0" title="0">{
+                trimmed := strings.TrimSpace(text)
+                if trimmed != "" </span><span class="cov0" title="0">{
+                        trimmedTexts = append(trimmedTexts, trimmed)
+                }</span>
+        }
+
+        // 2. Enforce max lengths
+        <span class="cov0" title="0">if len(r.Name) == 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("rule name cannot be empty")
+        }</span>
+        <span class="cov0" title="0">if len(r.Name) &gt; MaxRuleNameLength </span><span class="cov0" title="0">{
+                return fmt.Errorf("rule name exceeds max length of %d", MaxRuleNameLength)
+        }</span>
+        <span class="cov0" title="0">if len(trimmedTexts) == 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("rule must have at least one text")
+        }</span>
+        <span class="cov0" title="0">if len(trimmedTexts) &gt; MaxRuleTextsItems </span><span class="cov0" title="0">{
+                return fmt.Errorf("rule texts exceed max items of %d", MaxRuleTextsItems)
+        }</span>
+
+        <span class="cov0" title="0">for _, text := range trimmedTexts </span><span class="cov0" title="0">{
+                if len(text) &gt; MaxRuleTextLength </span><span class="cov0" title="0">{
+                        return fmt.Errorf("rule text '%s' exceeds max length of %d", text, MaxRuleTextLength)
+                }</span>
+        }
+
+        // Update r.Texts with trimmed and validated texts
+        <span class="cov0" title="0">textsJSON, err := json.Marshal(trimmedTexts)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal texts: %w", err)
+        }</span>
+        <span class="cov0" title="0">r.Texts = string(textsJSON)
+
+        // 3. For regex rules, compile the pattern
+        if r.Rule == "regex" </span><span class="cov0" title="0">{
+                if len(trimmedTexts) != 1 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("regex rule must have exactly one pattern")
+                }</span>
+                <span class="cov0" title="0">if _, err := regexp.Compile(trimmedTexts[0]); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("invalid regex pattern: %w", err)
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file15" style="display: none">package validation
+
+import (
+        "kalycs/internal/logging"
+        "strings"
+        "unicode/utf8"
+
+        "kalycs/db"
+)
+
+// ValidateProject validates a project struct and returns any validation errors
+func ValidateProject(project *db.Project) error <span class="cov8" title="1">{
+        if project == nil </span><span class="cov8" title="1">{
+                logging.L().Warnw("Project validation failed - project is nil")
+                return ValidationError{
+                        Field:   "project",
+                        Message: "project cannot be nil",
+                }
+        }</span>
+
+        <span class="cov8" title="1">var errors ValidationErrors
+
+        // Validate name
+        if err := validateProjectName(project.Name); err != nil </span><span class="cov8" title="1">{
+                if ve, ok := err.(ValidationError); ok </span><span class="cov8" title="1">{
+                        errors = append(errors, ve)
+                }</span> else<span class="cov0" title="0"> {
+                        errors.Add("name", err.Error(), project.Name)
+                }</span>
+        }
+
+        // Validate description
+        <span class="cov8" title="1">if err := validateProjectDescription(project.Description); err != nil </span><span class="cov8" title="1">{
+                if ve, ok := err.(ValidationError); ok </span><span class="cov8" title="1">{
+                        errors = append(errors, ve)
+                }</span> else<span class="cov0" title="0"> {
+                        errors.Add("description", err.Error(), project.Description)
+                }</span>
+        }
+
+        // Validate ID format if provided
+        <span class="cov8" title="1">if project.ID != "" </span><span class="cov8" title="1">{
+                if err := validateUUID(project.ID); err != nil </span><span class="cov8" title="1">{
+                        if ve, ok := err.(ValidationError); ok </span><span class="cov8" title="1">{
+                                errors = append(errors, ve)
+                        }</span> else<span class="cov0" title="0"> {
+                                errors.Add("id", err.Error(), project.ID)
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if errors.HasErrors() </span><span class="cov8" title="1">{
+                logging.L().Debugw("Project validation failed", "project_name", project.Name, "errors", errors.Error())
+        }</span>
+
+        <span class="cov8" title="1">return errors.ToError()</span>
+}
+
+// ValidateRule validates a rule struct and returns any validation errors
+func ValidateRule(rule *db.Rule) error <span class="cov8" title="1">{
+        if rule == nil </span><span class="cov8" title="1">{
+                logging.L().Warnw("Rule validation failed - rule is nil")
+                return ValidationError{
+                        Field:   "rule",
+                        Message: "rule cannot be nil",
+                }
+        }</span>
+
+        <span class="cov8" title="1">var errors ValidationErrors
+
+        // Validate name
+        if err := validateRuleName(rule.Name); err != nil </span><span class="cov0" title="0">{
+                if ve, ok := err.(ValidationError); ok </span><span class="cov0" title="0">{
+                        errors = append(errors, ve)
+                }</span> else<span class="cov0" title="0"> {
+                        errors.Add("name", err.Error(), rule.Name)
+                }</span>
+        }
+
+        // Validate project ID
+        <span class="cov8" title="1">if err := validateUUID(rule.ProjectID); err != nil </span><span class="cov8" title="1">{
+                errors.Add("project_id", "invalid project ID format", rule.ProjectID)
+        }</span>
+
+        // Validate rule type
+        <span class="cov8" title="1">if err := validateRuleType(rule.Rule); err != nil </span><span class="cov8" title="1">{
+                if ve, ok := err.(ValidationError); ok </span><span class="cov8" title="1">{
+                        errors = append(errors, ve)
+                }</span> else<span class="cov0" title="0"> {
+                        errors.Add("rule", err.Error(), rule.Rule)
+                }</span>
+        }
+
+        // Validate texts (should not be empty)
+        <span class="cov8" title="1">if strings.TrimSpace(rule.Texts) == "" </span><span class="cov8" title="1">{
+                errors.Add("texts", "rule texts cannot be empty", rule.Texts)
+        }</span>
+
+        // Validate ID format if provided
+        <span class="cov8" title="1">if rule.ID != "" </span><span class="cov0" title="0">{
+                if err := validateUUID(rule.ID); err != nil </span><span class="cov0" title="0">{
+                        if ve, ok := err.(ValidationError); ok </span><span class="cov0" title="0">{
+                                errors = append(errors, ve)
+                        }</span> else<span class="cov0" title="0"> {
+                                errors.Add("id", err.Error(), rule.ID)
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if errors.HasErrors() </span><span class="cov8" title="1">{
+                logging.L().Debugw("Rule validation failed", "rule_name", rule.Name, "errors", errors.Error())
+        }</span>
+
+        <span class="cov8" title="1">return errors.ToError()</span>
+}
+
+// ValidateID validates a single ID string
+func ValidateID(id string) error <span class="cov8" title="1">{
+        return validateUUID(id)
+}</span>
+
+// validateProjectName validates project name according to business rules
+func validateProjectName(name string) error <span class="cov8" title="1">{
+        trimmedName := strings.TrimSpace(name)
+
+        if trimmedName == "" </span><span class="cov8" title="1">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "project name is required",
+                }
+        }</span>
+
+        <span class="cov8" title="1">nameLength := utf8.RuneCountInString(trimmedName)
+        if nameLength &gt; MaxProjectNameLength </span><span class="cov8" title="1">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "project name must not exceed 25 characters",
+                        Value:   name,
+                }
+        }</span>
+
+        <span class="cov8" title="1">if nameLength &lt; MinProjectNameLength </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "project name must be at least 1 character",
+                        Value:   name,
+                }
+        }</span>
+
+        // Check for control characters
+        <span class="cov8" title="1">if strings.ContainsAny(trimmedName, "\t\n\r\f\v") </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "project name cannot contain control characters",
+                        Value:   name,
+                }
+        }</span>
+
+        // Check for consecutive spaces
+        <span class="cov8" title="1">if strings.Contains(trimmedName, "  ") </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "project name cannot contain consecutive spaces",
+                        Value:   name,
+                }
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// validateProjectDescription validates project description according to business rules
+func validateProjectDescription(description string) error <span class="cov8" title="1">{
+        if description == "" </span><span class="cov8" title="1">{
+                return nil // Description is optional
+        }</span>
+
+        <span class="cov8" title="1">trimmedDescription := strings.TrimSpace(description)
+        if utf8.RuneCountInString(trimmedDescription) &gt; MaxProjectDescriptionLength </span><span class="cov8" title="1">{
+                return ValidationError{
+                        Field:   "description",
+                        Message: "project description must not exceed 200 characters",
+                        Value:   description,
+                }
+        }</span>
+
+        // Check for problematic control characters
+        <span class="cov8" title="1">if strings.ContainsAny(trimmedDescription, "\f\v") </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "description",
+                        Message: "project description cannot contain form feed or vertical tab characters",
+                        Value:   description,
+                }
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// validateRuleName validates rule name according to business rules
+func validateRuleName(name string) error <span class="cov8" title="1">{
+        trimmedName := strings.TrimSpace(name)
+
+        if trimmedName == "" </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "rule name is required",
+                }
+        }</span>
+
+        <span class="cov8" title="1">nameLength := utf8.RuneCountInString(trimmedName)
+        if nameLength &gt; MaxRuleNameLength </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "rule name must not exceed 25 characters",
+                        Value:   name,
+                }
+        }</span>
+
+        <span class="cov8" title="1">if nameLength &lt; MinRuleNameLength </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "rule name must be at least 1 character",
+                        Value:   name,
+                }
+        }</span>
+
+        // Check for control characters
+        <span class="cov8" title="1">if strings.ContainsAny(trimmedName, "\t\n\r\f\v") </span><span class="cov0" title="0">{
+                return ValidationError{
+                        Field:   "name",
+                        Message: "rule name cannot contain control characters",
+                        Value:   name,
+                }
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// validateRuleType validates that the rule type is one of the allowed values
+func validateRuleType(ruleType string) error <span class="cov8" title="1">{
+        for _, validType := range ValidRuleTypes </span><span class="cov8" title="1">{
+                if ruleType == validType </span><span class="cov8" title="1">{
+                        return nil
+                }</span>
+        }
+
+        <span class="cov8" title="1">return ValidationError{
+                Field:   "rule",
+                Message: "rule type must be one of: starts_with, contains, ends_with, extension, regex",
+                Value:   ruleType,
+        }</span>
+}
+
+// validateUUID validates UUID format
+func validateUUID(id string) error <span class="cov8" title="1">{
+        if strings.TrimSpace(id) == "" </span><span class="cov8" title="1">{
+                return ValidationError{
+                        Field:   "id",
+                        Message: "ID cannot be empty or whitespace",
+                }
+        }</span>
+
+        <span class="cov8" title="1">if len(id) != UUIDLength || strings.Count(id, "-") != UUIDHyphenCount </span><span class="cov8" title="1">{
+                return ValidationError{
+                        Field:   "id",
+                        Message: "ID must be a valid UUID format",
+                        Value:   id,
+                }
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file16" style="display: none">package watcher
+
+import (
+        "context"
+        "kalycs/internal/classifier"
+        "kalycs/internal/logging"
+        "os"
+
+        "github.com/fsnotify/fsnotify"
+)
+
+type Watcher struct {
+        watcher    *fsnotify.Watcher
+        ctx        context.Context
+        cancel     context.CancelFunc
+        classifier *classifier.Classifier
+}
+
+func NewWatcher(ctx_main context.Context, watchPath string, c *classifier.Classifier) (*Watcher, error) <span class="cov8" title="1">{
+        ctx, cancel := context.WithCancel(ctx_main)
+        watcher, err := fsnotify.NewWatcher()
+        if err != nil </span><span class="cov0" title="0">{
+                cancel()
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">err = watcher.Add(watchPath)
+        if err != nil </span><span class="cov8" title="1">{
+                cancel()
+                watcher.Close()
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return &amp;Watcher{
+                watcher:    watcher,
+                ctx:        ctx,
+                cancel:     cancel,
+                classifier: c,
+        }, nil</span>
+}
+
+func (w *Watcher) Start() <span class="cov8" title="1">{
+        logging.L().Infow("Starting watcher")
+
+        go func() </span><span class="cov8" title="1">{
+                defer w.watcher.Close()
+                logging.L().Debug("Watcher goroutine started")
+                for </span><span class="cov8" title="1">{
+                        select </span>{
+                        case event, ok := &lt;-w.watcher.Events:<span class="cov8" title="1">
+                                if !ok </span><span class="cov0" title="0">{
+                                        logging.L().Warn("Event channel closed")
+                                        return
+                                }</span>
+                                <span class="cov8" title="1">logging.L().Infow("fsnotify event", "event", event, "name", event.Name, "op", event.Op)
+
+                                if event.Op&amp;fsnotify.Create == fsnotify.Create || event.Op&amp;fsnotify.Rename == fsnotify.Rename </span><span class="cov8" title="1">{
+                                        info, err := os.Stat(event.Name)
+                                        if err != nil </span><span class="cov0" title="0">{
+                                                if !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                                                        logging.L().Errorw("failed to stat file after create/rename event", "file", event.Name, "error", err)
+                                                }</span>
+                                                <span class="cov0" title="0">continue</span>
+                                        }
+                                        <span class="cov8" title="1">if !info.IsDir() </span><span class="cov8" title="1">{
+                                                logging.L().Infow("classifying new file", "path", event.Name)
+                                                if err := w.classifier.Classify(w.ctx, event.Name, info); err != nil </span><span class="cov0" title="0">{
+                                                        logging.L().Errorw("failed to classify file", "file", event.Name, "error", err)
+                                                }</span>
+                                        }
+                                }
+                        case err, ok := &lt;-w.watcher.Errors:<span class="cov0" title="0">
+                                if !ok </span><span class="cov0" title="0">{
+                                        logging.L().Warn("Error channel closed")
+                                        return
+                                }</span>
+                                <span class="cov0" title="0">logging.L().Errorw("fsnotify error", "error", err)</span>
+                        case &lt;-w.ctx.Done():<span class="cov8" title="1">
+                                logging.L().Info("Watcher context done")
+                                return</span>
+                        }
+                }
+        }()
+}
+
+func (w *Watcher) Stop() <span class="cov8" title="1">{
+        logging.L().Info("Stopping watcher")
+        w.cancel()
+}</span>
+</pre>
+		
+		<pre class="file" id="file17" style="display: none">package main
+
+import (
+        "embed"
+        "kalycs/internal/logging"
+
+        "github.com/wailsapp/wails/v2"
+        "github.com/wailsapp/wails/v2/pkg/logger"
+        "github.com/wailsapp/wails/v2/pkg/options"
+        "github.com/wailsapp/wails/v2/pkg/options/assetserver"
+)
+
+//go:embed all:frontend/dist
+var assets embed.FS
+
+func main() <span class="cov0" title="0">{
+        // Create an instance of the app structure
+        app := NewApp()
+
+        // Create application with options
+        err := wails.Run(&amp;options.App{
+                Title:  "kalycs",
+                Width:  1024,
+                Height: 768,
+                AssetServer: &amp;assetserver.Options{
+                        Assets: assets,
+                },
+                BackgroundColour: &amp;options.RGBA{R: 27, G: 38, B: 54, A: 1},
+                OnStartup:        app.startup,
+                OnShutdown:       app.shutdown,
+                LogLevel:         logger.ERROR,
+                Bind: []interface{}{
+                        app,
+                },
+        })
+
+        if err != nil </span><span class="cov0" title="0">{
+                logging.L().Fatalw("Failed to start application", "error", err)
+        }</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

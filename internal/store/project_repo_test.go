@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"runtime"
+	"kalycs/internal/testutils"
 	"strings"
 	"testing"
 	"time"
@@ -15,27 +14,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// prepareTestEnv sets up a temporary environment for testing
-func prepareTestEnv(t *testing.T) string {
-	t.Helper()
-	tmpDir := t.TempDir()
-
-	switch runtime.GOOS {
-	case "windows":
-		os.Setenv("APPDATA", tmpDir)
-		os.Setenv("HOME", tmpDir)
-	case "darwin":
-		os.Setenv("HOME", tmpDir)
-	default:
-		os.Setenv("HOME", tmpDir)
-	}
-
-	return tmpDir
-}
-
 // setupTestDB initializes a test database
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
+	testutils.PrepareTestEnv(t)
 
 	if err := db.InitializeDatabase(); err != nil {
 		t.Fatalf("Failed to initialize test database: %v", err)
@@ -77,7 +59,6 @@ func createTestProjectWithID(id, name string) *db.Project {
 }
 
 func TestProjectRepo_Create(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 
@@ -167,7 +148,6 @@ func TestProjectRepo_Create(t *testing.T) {
 }
 
 func TestProjectRepo_Create_DuplicateName(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -190,7 +170,6 @@ func TestProjectRepo_Create_DuplicateName(t *testing.T) {
 }
 
 func TestProjectRepo_GetByID(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -235,7 +214,7 @@ func TestProjectRepo_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := repo.GetByID(tt.id)
+			result, err := repo.GetByID(ctx, tt.id)
 
 			if tt.wantErr {
 				if err == nil {
@@ -276,15 +255,91 @@ func TestProjectRepo_GetByID(t *testing.T) {
 	}
 }
 
+func TestProjectRepo_GetByName(t *testing.T) {
+	testDB := setupTestDB(t)
+	repo := NewProjectRepo(testDB)
+	ctx := context.Background()
+
+	// Create a test project
+	projectName := "GetByName Test"
+	project := createTestProject(projectName)
+	err := repo.Create(ctx, project)
+	if err != nil {
+		t.Fatalf("Failed to create test project: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		projectName string
+		wantProject bool
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "valid name",
+			projectName: projectName,
+			wantProject: true,
+			wantErr:     false,
+		},
+		{
+			name:        "non-existent name",
+			projectName: "non-existent-project",
+			wantProject: false,
+			wantErr:     false,
+		},
+		{
+			name:        "empty name",
+			projectName: "",
+			wantProject: false,
+			wantErr:     false, // The function should return nil, nil
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := repo.GetByName(ctx, tt.projectName)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("GetByName() expected error, got nil")
+					return
+				}
+				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("GetByName() error = %v, expected to contain %v", err, tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetByName() unexpected error = %v", err)
+					return
+				}
+
+				if tt.wantProject {
+					if result == nil {
+						t.Error("GetByName() returned nil project, expected a project")
+						return
+					}
+					// Verify the returned project matches what we created
+					if result.Name != project.Name {
+						t.Errorf("GetByName() Name = %v, want %v", result.Name, project.Name)
+					}
+				} else {
+					if result != nil {
+						t.Errorf("GetByName() expected nil project, got %v", result)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestProjectRepo_GetAll(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
 
 	// Test with empty database
 	t.Run("empty database", func(t *testing.T) {
-		projects, err := repo.GetAll()
+		projects, err := repo.GetAll(ctx)
 		if err != nil {
 			t.Errorf("GetAll() unexpected error = %v", err)
 		}
@@ -319,7 +374,7 @@ func TestProjectRepo_GetAll(t *testing.T) {
 
 	// Test with populated database
 	t.Run("populated database", func(t *testing.T) {
-		projects, err := repo.GetAll()
+		projects, err := repo.GetAll(ctx)
 		if err != nil {
 			t.Errorf("GetAll() unexpected error = %v", err)
 			return
@@ -360,7 +415,6 @@ func TestProjectRepo_GetAll(t *testing.T) {
 }
 
 func TestProjectRepo_Update(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -443,7 +497,7 @@ func TestProjectRepo_Update(t *testing.T) {
 				updateProject = tt.project
 			}
 
-			err := repo.Update(updateProject)
+			err := repo.Update(ctx, updateProject)
 
 			if tt.wantErr {
 				if err == nil {
@@ -465,7 +519,7 @@ func TestProjectRepo_Update(t *testing.T) {
 				}
 
 				// Verify the changes in the database
-				updatedProject, err := repo.GetByID(updateProject.ID)
+				updatedProject, err := repo.GetByID(ctx, updateProject.ID)
 				if err != nil {
 					t.Errorf("Failed to get updated project: %v", err)
 					return
@@ -489,7 +543,6 @@ func TestProjectRepo_Update(t *testing.T) {
 }
 
 func TestProjectRepo_Update_DuplicateName(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -510,7 +563,7 @@ func TestProjectRepo_Update_DuplicateName(t *testing.T) {
 
 	// Try to update project2 to have the same name as project1
 	project2.Name = "Project One"
-	err = repo.Update(project2)
+	err = repo.Update(ctx, project2)
 	if err == nil {
 		t.Error("Update() expected error for duplicate name, got nil")
 	} else if !strings.Contains(err.Error(), "already exists") {
@@ -519,7 +572,6 @@ func TestProjectRepo_Update_DuplicateName(t *testing.T) {
 }
 
 func TestProjectRepo_Delete(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -552,7 +604,7 @@ func TestProjectRepo_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Delete(tt.id)
+			err := repo.Delete(ctx, tt.id)
 
 			if tt.wantErr {
 				if err == nil {
@@ -578,14 +630,14 @@ func TestProjectRepo_Delete(t *testing.T) {
 			t.Fatalf("Failed to create test project: %v", err)
 		}
 
-		err = repo.Delete(project.ID)
+		err = repo.Delete(ctx, project.ID)
 		if err != nil {
 			t.Errorf("Delete() unexpected error = %v", err)
 			return
 		}
 
 		// Verify the project was deleted
-		_, err = repo.GetByID(project.ID)
+		_, err = repo.GetByID(ctx, project.ID)
 		if err == nil {
 			t.Error("Delete() project still exists after deletion")
 		} else if !strings.Contains(err.Error(), "not found") {
@@ -596,7 +648,6 @@ func TestProjectRepo_Delete(t *testing.T) {
 
 // Integration test that tests the full CRUD lifecycle
 func TestProjectRepo_FullCRUDLifecycle(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -614,7 +665,7 @@ func TestProjectRepo_FullCRUDLifecycle(t *testing.T) {
 	}
 
 	// Read by ID
-	retrievedProject, err := repo.GetByID(originalID)
+	retrievedProject, err := repo.GetByID(ctx, originalID)
 	if err != nil {
 		t.Fatalf("GetByID failed: %v", err)
 	}
@@ -624,7 +675,7 @@ func TestProjectRepo_FullCRUDLifecycle(t *testing.T) {
 	}
 
 	// Read all
-	allProjects, err := repo.GetAll()
+	allProjects, err := repo.GetAll(ctx)
 	if err != nil {
 		t.Fatalf("GetAll failed: %v", err)
 	}
@@ -645,13 +696,13 @@ func TestProjectRepo_FullCRUDLifecycle(t *testing.T) {
 	retrievedProject.IsActive = false
 	retrievedProject.IsFavourite = true
 
-	err = repo.Update(retrievedProject)
+	err = repo.Update(ctx, retrievedProject)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
 	// Verify update
-	updatedProject, err := repo.GetByID(originalID)
+	updatedProject, err := repo.GetByID(ctx, originalID)
 	if err != nil {
 		t.Fatalf("GetByID after update failed: %v", err)
 	}
@@ -661,13 +712,13 @@ func TestProjectRepo_FullCRUDLifecycle(t *testing.T) {
 	}
 
 	// Delete
-	err = repo.Delete(originalID)
+	err = repo.Delete(ctx, originalID)
 	if err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
 
 	// Verify deletion
-	_, err = repo.GetByID(originalID)
+	_, err = repo.GetByID(ctx, originalID)
 	if err == nil {
 		t.Error("GetByID after delete should have failed")
 	} else if !strings.Contains(err.Error(), "not found") {
@@ -677,7 +728,6 @@ func TestProjectRepo_FullCRUDLifecycle(t *testing.T) {
 
 // Edge case tests for robustness
 func TestProjectRepo_EdgeCases(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -696,7 +746,7 @@ func TestProjectRepo_EdgeCases(t *testing.T) {
 		}
 
 		// Verify the name was normalized (whitespace trimmed)
-		retrieved, err := repo.GetByID(project.ID)
+		retrieved, err := repo.GetByID(ctx, project.ID)
 		if err != nil {
 			t.Fatalf("Failed to retrieve project: %v", err)
 		}
@@ -755,7 +805,6 @@ func TestProjectRepo_EdgeCases(t *testing.T) {
 
 // Concurrency tests for thread safety
 func TestProjectRepo_ConcurrentOperations(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -780,7 +829,7 @@ func TestProjectRepo_ConcurrentOperations(t *testing.T) {
 		}
 
 		// Verify all projects were created
-		projects, err := repo.GetAll()
+		projects, err := repo.GetAll(ctx)
 		if err != nil {
 			t.Errorf("GetAll() failed: %v", err)
 		}
@@ -803,7 +852,7 @@ func TestProjectRepo_ConcurrentOperations(t *testing.T) {
 
 		for i := 0; i < numGoroutines; i++ {
 			go func() {
-				_, err := repo.GetByID(project.ID)
+				_, err := repo.GetByID(ctx, project.ID)
 				errors <- err
 			}()
 		}
@@ -820,7 +869,6 @@ func TestProjectRepo_ConcurrentOperations(t *testing.T) {
 
 // Context cancellation tests
 func TestProjectRepo_ContextCancellation(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 
@@ -863,7 +911,6 @@ func TestProjectRepo_Performance(t *testing.T) {
 		t.Skip("Skipping performance tests in short mode")
 	}
 
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -885,7 +932,7 @@ func TestProjectRepo_Performance(t *testing.T) {
 			numProjects, duration, float64(numProjects)/duration.Seconds())
 
 		// Verify all projects were created
-		projects, err := repo.GetAll()
+		projects, err := repo.GetAll(ctx)
 		if err != nil {
 			t.Fatalf("GetAll() failed: %v", err)
 		}
@@ -898,7 +945,6 @@ func TestProjectRepo_Performance(t *testing.T) {
 
 // Database constraint tests
 func TestProjectRepo_DatabaseConstraints(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -955,7 +1001,6 @@ func TestProjectRepo_DatabaseConstraints(t *testing.T) {
 
 // Test data integrity across operations
 func TestProjectRepo_DataIntegrity(t *testing.T) {
-	prepareTestEnv(t)
 	testDB := setupTestDB(t)
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
@@ -988,7 +1033,7 @@ func TestProjectRepo_DataIntegrity(t *testing.T) {
 		// Update the project
 		beforeUpdate := time.Now().UTC()
 		project.Name = "Updated Timestamp Test"
-		err = repo.Update(project)
+		err = repo.Update(ctx, project)
 		if err != nil {
 			t.Fatalf("Update failed: %v", err)
 		}
@@ -1005,7 +1050,7 @@ func TestProjectRepo_DataIntegrity(t *testing.T) {
 		}
 
 		// Verify CreatedAt didn't change
-		retrieved, err := repo.GetByID(project.ID)
+		retrieved, err := repo.GetByID(ctx, project.ID)
 		if err != nil {
 			t.Fatalf("GetByID failed: %v", err)
 		}
@@ -1040,7 +1085,7 @@ func TestProjectRepo_DataIntegrity(t *testing.T) {
 					t.Fatalf("Create failed: %v", err)
 				}
 
-				retrieved, err := repo.GetByID(project.ID)
+				retrieved, err := repo.GetByID(ctx, project.ID)
 				if err != nil {
 					t.Fatalf("GetByID failed: %v", err)
 				}
@@ -1058,14 +1103,7 @@ func TestProjectRepo_DataIntegrity(t *testing.T) {
 
 // Benchmark tests for performance analysis
 func BenchmarkProjectRepo_Create(b *testing.B) {
-	prepareTestEnv(&testing.T{})
-
-	if err := db.InitializeDatabase(); err != nil {
-		b.Fatalf("Failed to initialize test database: %v", err)
-	}
-	defer db.CloseDatabase()
-
-	testDB := db.GetDB()
+	testDB := setupTestDB(&testing.T{})
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
 
@@ -1080,27 +1118,13 @@ func BenchmarkProjectRepo_Create(b *testing.B) {
 }
 
 func BenchmarkProjectRepo_GetByID(b *testing.B) {
-	prepareTestEnv(&testing.T{})
-
-	if err := db.InitializeDatabase(); err != nil {
-		b.Fatalf("Failed to initialize test database: %v", err)
-	}
-	defer db.CloseDatabase()
-
-	testDB := db.GetDB()
+	testDB := setupTestDB(&testing.T{})
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
 
-	// Create a test project
-	project := createTestProject("BenchGetByID")
-	err := repo.Create(ctx, project)
-	if err != nil {
-		b.Fatalf("Failed to create test project: %v", err)
-	}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := repo.GetByID(project.ID)
+		_, err := repo.GetByID(ctx, "550e8400-e29b-41d4-a716-446655440000")
 		if err != nil {
 			b.Fatalf("GetByID failed: %v", err)
 		}
@@ -1108,14 +1132,7 @@ func BenchmarkProjectRepo_GetByID(b *testing.B) {
 }
 
 func BenchmarkProjectRepo_GetAll(b *testing.B) {
-	prepareTestEnv(&testing.T{})
-
-	if err := db.InitializeDatabase(); err != nil {
-		b.Fatalf("Failed to initialize test database: %v", err)
-	}
-	defer db.CloseDatabase()
-
-	testDB := db.GetDB()
+	testDB := setupTestDB(&testing.T{})
 	repo := NewProjectRepo(testDB)
 	ctx := context.Background()
 
@@ -1130,7 +1147,7 @@ func BenchmarkProjectRepo_GetAll(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := repo.GetAll()
+		_, err := repo.GetAll(ctx)
 		if err != nil {
 			b.Fatalf("GetAll failed: %v", err)
 		}

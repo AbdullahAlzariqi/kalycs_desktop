@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"kalycs/internal/logging"
 )
 
 // TransactionFunc represents a function that can be executed within a transaction
@@ -30,7 +31,7 @@ func WithTransactionContext(ctx context.Context, db *sql.DB, fn TransactionFunc)
 			// Rollback on panic
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				// Log rollback error but don't override the panic
-				fmt.Printf("failed to rollback transaction after panic: %v\n", rollbackErr)
+				logging.L().Errorw("Failed to rollback transaction after panic", "error", rollbackErr)
 			}
 			panic(p) // Re-panic
 		}
@@ -80,7 +81,7 @@ func WithTransactionOptions(ctx context.Context, db *sql.DB, opts *TransactionOp
 		if p := recover(); p != nil {
 			// Rollback on panic
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				fmt.Printf("failed to rollback transaction after panic: %v\n", rollbackErr)
+				logging.L().Errorw("Failed to rollback transaction after panic", "error", rollbackErr)
 			}
 			panic(p) // Re-panic
 		}

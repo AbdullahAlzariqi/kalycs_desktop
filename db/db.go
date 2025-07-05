@@ -3,7 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"kalycs/internal/logging"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -36,6 +36,19 @@ type Rule struct {
 	CaseSensitive bool      `json:"case_sensitive"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// File represents the file schema
+type File struct {
+	ID        string         `json:"id"`
+	Path      string         `json:"path"`
+	Name      string         `json:"name"`
+	Ext       string         `json:"ext"`
+	Size      int64          `json:"size"`
+	Mtime     time.Time      `json:"mtime"`
+	ProjectID sql.NullString `json:"project_id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 // getAppDataDirectory returns the appropriate application data directory for the current OS
@@ -78,6 +91,14 @@ func getAppDataDirectory() (string, error) {
 
 // InitializeDatabase sets up the SQLite database and creates tables
 func InitializeDatabase() error {
+	// Close existing connection if it exists to prevent connection leaks
+	if db != nil {
+		if err := db.Close(); err != nil {
+			logging.L().Warnw("Failed to close existing database connection", "error", err)
+		}
+		db = nil // Clear the reference
+	}
+
 	appDir, err := getAppDataDirectory()
 	if err != nil {
 		return fmt.Errorf("failed to get app directory: %w", err)
@@ -98,7 +119,7 @@ func InitializeDatabase() error {
 
 	// Set secure file permissions
 	if err := os.Chmod(dbPath, 0600); err != nil {
-		log.Printf("Warning: failed to set secure permissions on database file: %v", err)
+		logging.L().Warnw("Failed to set secure permissions on database file", "error", err, "path", dbPath)
 	}
 
 	// Create tables
@@ -106,7 +127,7 @@ func InitializeDatabase() error {
 		return fmt.Errorf("failed to create tables: %w", err)
 	}
 
-	log.Println("Database initialized successfully")
+	logging.L().Info("Database initialized successfully")
 	return nil
 }
 
@@ -136,6 +157,20 @@ func createTables() error {
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
 
+	fileTable := `
+	CREATE TABLE IF NOT EXISTS files (
+		id          TEXT PRIMARY KEY,
+		path        TEXT UNIQUE,
+		name        TEXT NOT NULL,
+		ext         TEXT NOT NULL,
+		size        INTEGER,
+		mtime       DATETIME,
+		project_id  TEXT,
+		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+	);`
+
 	// Create indexes
 	projectNameIndex := `CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);`
 	ruleProjectIndex := `CREATE INDEX IF NOT EXISTS idx_rules_project_id ON rules(project_id);`
@@ -155,8 +190,15 @@ func createTables() error {
 		UPDATE rules SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 	END;`
 
+	fileTrigger := `
+	CREATE TRIGGER IF NOT EXISTS trg_files_updated_at
+	AFTER UPDATE ON files
+	BEGIN
+		UPDATE files SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+	END;`
+
 	statements := []string{
-		projectTable, ruleTable, projectNameIndex, ruleProjectIndex, projectTrigger, ruleTrigger,
+		projectTable, ruleTable, fileTable, projectNameIndex, ruleProjectIndex, projectTrigger, ruleTrigger, fileTrigger,
 	}
 
 	for _, stmt := range statements {
@@ -171,7 +213,9 @@ func createTables() error {
 // CloseDatabase closes the database connection
 func CloseDatabase() error {
 	if db != nil {
-		return db.Close()
+		err := db.Close()
+		db = nil // Clear the reference after closing
+		return err
 	}
 	return nil
 }

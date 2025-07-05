@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	"kalycs/db"
@@ -11,11 +12,13 @@ func TestValidateProject(t *testing.T) {
 		name    string
 		project *db.Project
 		wantErr bool
+		errMsg  string
 	}{
 		{
 			name:    "nil project",
 			project: nil,
 			wantErr: true,
+			errMsg:  "project cannot be nil",
 		},
 		{
 			name: "valid project",
@@ -33,6 +36,7 @@ func TestValidateProject(t *testing.T) {
 				IsActive: true,
 			},
 			wantErr: true,
+			errMsg:  "project name is required",
 		},
 		{
 			name: "name too long",
@@ -41,6 +45,7 @@ func TestValidateProject(t *testing.T) {
 				IsActive: true,
 			},
 			wantErr: true,
+			errMsg:  "project name must not exceed 25 characters",
 		},
 		{
 			name: "description too long",
@@ -50,6 +55,7 @@ func TestValidateProject(t *testing.T) {
 				IsActive:    true,
 			},
 			wantErr: true,
+			errMsg:  "project description must not exceed 200 characters",
 		},
 		{
 			name: "invalid UUID",
@@ -59,6 +65,7 @@ func TestValidateProject(t *testing.T) {
 				IsActive: true,
 			},
 			wantErr: true,
+			errMsg:  "ID must be a valid UUID format",
 		},
 		{
 			name: "valid UUID",
@@ -77,6 +84,11 @@ func TestValidateProject(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateProject() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			if tt.wantErr && err != nil {
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("ValidateProject() error = %q, want to contain %q", err.Error(), tt.errMsg)
+				}
+			}
 		})
 	}
 }
@@ -88,11 +100,13 @@ func TestValidateRule(t *testing.T) {
 		name    string
 		rule    *db.Rule
 		wantErr bool
+		errMsg  string
 	}{
 		{
 			name:    "nil rule",
 			rule:    nil,
 			wantErr: true,
+			errMsg:  "rule cannot be nil",
 		},
 		{
 			name: "valid rule",
@@ -113,6 +127,7 @@ func TestValidateRule(t *testing.T) {
 				Texts:     "test",
 			},
 			wantErr: true,
+			errMsg:  "rule type must be one of",
 		},
 		{
 			name: "empty texts",
@@ -123,6 +138,7 @@ func TestValidateRule(t *testing.T) {
 				Texts:     "",
 			},
 			wantErr: true,
+			errMsg:  "rule texts cannot be empty",
 		},
 		{
 			name: "invalid project ID",
@@ -133,6 +149,7 @@ func TestValidateRule(t *testing.T) {
 				Texts:     "test",
 			},
 			wantErr: true,
+			errMsg:  "invalid project ID format",
 		},
 	}
 
@@ -141,6 +158,11 @@ func TestValidateRule(t *testing.T) {
 			err := ValidateRule(tt.rule)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateRule() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil {
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("ValidateRule() error = %q, want to contain %q", err.Error(), tt.errMsg)
+				}
 			}
 		})
 	}
@@ -196,5 +218,43 @@ func TestValidationErrors(t *testing.T) {
 
 	if len(errors) != 2 {
 		t.Errorf("len(ValidationErrors) = %d, want 2", len(errors))
+	}
+}
+
+func TestValidateID(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{
+			name:    "valid uuid",
+			id:      "550e8400-e29b-41d4-a716-446655440000",
+			wantErr: false,
+		},
+		{
+			name:    "invalid uuid",
+			id:      "invalid-uuid",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			id:      "",
+			wantErr: true,
+		},
+		{
+			name:    "whitespace only",
+			id:      "   ",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateID(tt.id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateID() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

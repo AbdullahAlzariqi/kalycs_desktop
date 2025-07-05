@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"kalycs/internal/logging"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -34,6 +35,6 @@ func main() {
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		logging.L().Fatalw("Failed to start application", "error", err)
 	}
 }

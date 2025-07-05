@@ -11,6 +11,8 @@ const (
 const (
 	MaxRuleNameLength = 25
 	MinRuleNameLength = 1
+	MaxRuleTextLength = 64
+	MaxRuleTextsItems = 20
 )
 
 // Common validation constants
