@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"kalycs/db"
 	"kalycs/internal/logging"
 	"kalycs/internal/store"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -80,6 +82,10 @@ func (c *Classifier) Reload(ctx context.Context) error {
 		compiled = append(compiled, compiledRule)
 	}
 
+	sort.Slice(compiled, func(i, j int) bool {
+		return compiled[i].Priority < compiled[j].Priority
+	})
+
 	c.mu.Lock()
 	c.set = compiled
 	c.mu.Unlock()
@@ -102,18 +108,25 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 		Texts:         texts,
 	}
 
-	if !cr.CaseSensitive {
-		for i, t := range cr.Texts {
-			cr.Texts[i] = strings.ToLower(t)
-		}
-	}
-
 	if cr.Kind == "regex" {
-		re, err := regexp.Compile(cr.Texts[0])
+		if len(cr.Texts) == 0 {
+			return CompiledRule{}, fmt.Errorf("regex rule requires at least one text pattern")
+		}
+
+		pattern := cr.Texts[0]
+		if !cr.CaseSensitive {
+			pattern = "(?i)" + pattern
+		}
+		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return CompiledRule{}, err
 		}
 		cr.Regexp = re
+	} else if !cr.CaseSensitive {
+		for i, t := range cr.Texts {
+			cr.Texts[i] = strings.ToLower(t)
+
+		}
 	}
 
 	return cr, nil
@@ -121,9 +134,9 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 
 func (c *Classifier) Classify(ctx context.Context, absPath string, meta os.FileInfo) error {
 	name := meta.Name()
-	ext := strings.ToLower(filepath.Ext(name))
+	ext := filepath.Ext(name)
 	if len(ext) > 0 {
-		ext = ext[1:] // remove dot
+		ext = ext[1:]
 	}
 
 	c.mu.RLock()
@@ -167,20 +180,43 @@ func (c *Classifier) Classify(ctx context.Context, absPath string, meta os.FileI
 
 func matches(r CompiledRule, name, ext string) bool {
 	testName := name
-	if !r.CaseSensitive {
+	if !r.CaseSensitive && r.Kind != "regex" {
 		testName = strings.ToLower(testName)
 	}
 
 	switch r.Kind {
 	case "starts_with":
-		return strings.HasPrefix(testName, r.Texts[0])
+		for _, t := range r.Texts {
+			if strings.HasPrefix(testName, t) {
+				return true
+			}
+		}
+		return false
 	case "contains":
-		return strings.Contains(testName, r.Texts[0])
+		for _, t := range r.Texts {
+			if strings.Contains(testName, t) {
+				return true
+			}
+		}
+		return false
 	case "ends_with":
-		return strings.HasSuffix(testName, r.Texts[0])
+		for _, t := range r.Texts {
+			if strings.HasSuffix(testName, t) {
+				return true
+			}
+		}
+		return false
 	case "extension":
-		// extension is already lowercased
-		return ext == r.Texts[0]
+		testExt := ext
+		if !r.CaseSensitive {
+			testExt = strings.ToLower(testExt)
+		}
+		for _, t := range r.Texts {
+			if testExt == t {
+				return true
+			}
+		}
+		return false
 	case "regex":
 		return r.Regexp.MatchString(name)
 	}
