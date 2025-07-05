@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"kalycs/db"
 	"kalycs/internal/logging"
 	"kalycs/internal/store"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -80,6 +82,10 @@ func (c *Classifier) Reload(ctx context.Context) error {
 		compiled = append(compiled, compiledRule)
 	}
 
+	sort.Slice(compiled, func(i, j int) bool {
+		return compiled[i].Priority < compiled[j].Priority
+	})
+
 	c.mu.Lock()
 	c.set = compiled
 	c.mu.Unlock()
@@ -103,6 +109,9 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 	}
 
 	if cr.Kind == "regex" {
+		if len(cr.Texts) == 0 {
+			return CompiledRule{}, fmt.Errorf("regex rule requires at least one text pattern")
+		}
 
 		pattern := cr.Texts[0]
 		if !cr.CaseSensitive {
@@ -125,9 +134,9 @@ func compileRule(r db.Rule) (CompiledRule, error) {
 
 func (c *Classifier) Classify(ctx context.Context, absPath string, meta os.FileInfo) error {
 	name := meta.Name()
-	ext := strings.ToLower(filepath.Ext(name))
+	ext := filepath.Ext(name)
 	if len(ext) > 0 {
-		ext = ext[1:] // remove dot
+		ext = ext[1:]
 	}
 
 	c.mu.RLock()
@@ -198,8 +207,12 @@ func matches(r CompiledRule, name, ext string) bool {
 		}
 		return false
 	case "extension":
+		testExt := ext
+		if !r.CaseSensitive {
+			testExt = strings.ToLower(testExt)
+		}
 		for _, t := range r.Texts {
-			if ext == t {
+			if testExt == t {
 				return true
 			}
 		}
